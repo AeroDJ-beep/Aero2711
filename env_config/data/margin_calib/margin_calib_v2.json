@@ -1,0 +1,47 @@
+{
+ "rows": [
+  {
+   "c_cam": 25,
+   "parallel": 0,
+   "oblique45": 0,
+   "facing": 0
+  },
+  {
+   "c_cam": 20,
+   "parallel": 0,
+   "oblique45": 0,
+   "facing": 0
+  },
+  {
+   "c_cam": 15,
+   "parallel": 0,
+   "oblique45": 0,
+   "facing": 0
+  },
+  {
+   "c_cam": 12,
+   "parallel": 0,
+   "oblique45": 0,
+   "facing": 0
+  },
+  {
+   "c_cam": 10,
+   "parallel": 0,
+   "oblique45": 0,
+   "facing": 924
+  },
+  {
+   "c_cam": 8,
+   "parallel": 0,
+   "oblique45": 0,
+   "facing": 8760
+  },
+  {
+   "c_cam": 5,
+   "parallel": 0,
+   "oblique45": 0,
+   "facing": 9120
+  }
+ ],
+ "note": "c_cam = camera-point clearance to wall face (cm), camera = pawn + 30*heading"
+}

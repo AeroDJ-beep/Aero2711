@@ -1,0 +1,50 @@
+# third-party projects (separate repositories)
+OA-VAT/
+unrealzoo-gym/
+YOPOv2-Tracker/
+_to_delete/
+
+# papers, videos, data, model weights, archives
+*.pdf
+*.mp4
+*.avi
+*.mov
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.zip
+*.7z
+*.tar
+*.gz
+
+# results: keep metrics and figures, drop raw logs and videos
+results/videos/
+results/logs/
+
+# python / editors
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.vscode/
+.idea/
+*.log
+
+# installers and local scratch
+_misc/
+*.exe
+*.msi
+*.pima
+
+# not part of this project
+Tello_fly/
+Tello_WIFI_Control/
+first-project/
+download.png
+
+# personal files (never publish)
+证件照*
+*.jpg
+*.jpeg
