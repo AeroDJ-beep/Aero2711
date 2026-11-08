@@ -1,5 +1,5 @@
-"""Engine-independent core of the occlusion-tracking pipeline (ported from
-run_metrics_test.py so it can run on UnrealZoo scenes):
+"""Engine-independent core of the occlusion-tracking pipeline (ported from the
+earlier L-corner stage so it can run on UnrealZoo scenes):
 
   * KF factories (cv / ca, plain or tight-R)         make_kf(mode)
   * P controller                                     control(cx, h)

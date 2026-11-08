@@ -1,50 +1,46 @@
-# third-party projects (separate repositories)
-OA-VAT/
-unrealzoo-gym/
-YOPOv2-Tracker/
-_to_delete/
+# Whitelist: only the final project is published.
+/*
+!/.gitignore
+!/README.md
+!/ruff.toml
+!/assets/
 
-# papers, videos, data, model weights, archives
-*.pdf
-*.mp4
-*.avi
-*.mov
-*.npy
-*.npz
-*.pt
-*.pth
-*.ckpt
-*.onnx
-*.zip
-*.7z
-*.tar
-*.gz
+!/experiments/
+/experiments/*
+!/experiments/uz_run.py
+!/experiments/uz_maze.py
+!/experiments/uz_astar.py
+!/experiments/occl_core.py
+!/experiments/uz_env.py
+!/experiments/uz_routes.py
+!/experiments/perception_server.py
+!/experiments/dp_server.py
+!/experiments/uz_collect_maze.py
+!/experiments/dp_build_zarr.py
+!/experiments/uz_sweep.py
+!/experiments/run_sweep_watchdog.sh
+!/experiments/supervise.sh
+!/experiments/kill_sweep.ps1
+!/experiments/summarize_final.py
+!/experiments/analyze_reacq_ev.py
+!/experiments/uz_analyze_episode.py
+!/experiments/uz_video_maze.py
+!/experiments/uz_replay_steplog.py
+!/experiments/make_phone_video.py
 
-# results: keep metrics and figures, drop raw logs and videos
-results/videos/
-results/logs/
+!/env_config/
+/env_config/*
+!/env_config/data/
+/env_config/data/*
+!/env_config/data/maze_fr10x10l35t24g_s0.json
 
-# python / editors
+!/results/
+/results/*
+!/results/final_summary.csv
+!/results/metrics/
+/results/metrics/*
+!/results/metrics/uz_sweep_rwfinal.jsonl
+!/results/metrics/uz_sweep_rwfinalkpf.jsonl
+
 __pycache__/
 *.pyc
-.ipynb_checkpoints/
-.vscode/
-.idea/
-*.log
-
-# installers and local scratch
-_misc/
-*.exe
-*.msi
-*.pima
-
-# not part of this project
-Tello_fly/
-Tello_WIFI_Control/
-first-project/
-download.png
-
-# personal files (never publish)
-证件照*
-*.jpg
-*.jpeg

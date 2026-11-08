@@ -1,8 +1,9 @@
-"""One-factor-at-a-time sweep of the A* planner parameters on the gated maze.
-Boots the engine once, builds the maze once, runs every (setting, seed) and appends
-one JSON line per episode to results/metrics/uz_sweep_astar.jsonl (resumable:
-finished (setting, seed) pairs are skipped).
-usage: python uz_sweep.py [seeds=3]"""
+"""Batch runs on the maze: boots the engine once, builds the maze once, runs every
+(setting, seed) of a preset and appends one JSON line per episode to
+results/metrics/uz_sweep_<preset>.jsonl (resumable: finished pairs are skipped).
+The final evaluation uses the presets `rwfinal` (12 configurations) and `rwfinalkpf`
+(M1k, M4k); the other presets are from development.
+usage: python uz_sweep.py <seeds: 10 -> 0..9, or 0,3,4> <preset>"""
 
 import os, sys, json, time
 

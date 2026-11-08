@@ -1,6 +1,6 @@
 """UnrealZoo environment wrapper for the occlusion-tracking pipeline.
 
-Replaces the FlexibleRoom-specific plumbing in run_metrics_test.py:
+Replaces the FlexibleRoom-specific plumbing of the earlier L-corner stage:
   * UZEnv(map).spawn()      launch UnrealZoo on a scene, spawn target + tracker humans
   * build_navgrid()         free-space grid from navmesh reachable points (25 cm)
                             -> clearance (distance transform), outward normal,

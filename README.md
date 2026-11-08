@@ -1,107 +1,124 @@
-# Aero2711 — UAV tracking of a walking person through a maze under occlusion
+# Aero2711: a drone following a person through a maze
 
-**中文**：在迷宫中用无人机跟踪一个行走的人，人会被墙挡住、会拐进侧向走廊。仿真平台为 UnrealZoo（Unreal Engine 5 + UnrealCV）。
+A tracking pipeline for a camera drone that follows a walking person indoors, from detection to velocity commands. Walls often hide the person, and she may turn into a side corridor, slow down or speed up while hidden. The pipeline is tested in a generated maze in [UnrealZoo](https://github.com/UnrealZoo/unrealzoo-gym) (Unreal Engine 5.7, controlled through UnrealCV).
 
-**English**: a camera drone follows a walking person through a maze where walls hide her and she turns into side corridors. Simulated in UnrealZoo (Unreal Engine 5 + UnrealCV).
+This is a small simulation study for the AERO2711 research project at the University of Sydney. Its starting point is the modular tracker OA-VAT (CVPR 2026).
 
-![Pipeline](results/figures/pipeline_2026-10-19.svg)
+![The full system follows the person to the exit; the baseline loses her](assets/maze_m1_vs_b0.png)
 
----
+*One maze, one seed. Orange: the person's walk; blue dashed: the drone's path. Left: the full system (M1) follows her to the exit. Right: the baseline (B0) loses her about 63% of the way along.*
 
-## Pipeline / 系统流程
+## Pipeline
 
-| Stage / 模块 | English | 中文 |
-|---|---|---|
-| Pose readback | real camera position read back from the engine every step | 每一步从引擎读回相机的真实位置 |
-| Object mask box | is she visible; box shape | 是否看得见；检测框形状 |
-| Torso keypoints | direction from the neck/chest/pelvis column, distance from the neck–pelvis pixel length | 由颈、胸、骨盆的平均列得方向，由颈到骨盆的像素长度得距离 |
-| Measurement guards | edge / sliver / fade checks for partly hidden boxes | 检测框被画面边缘或墙切掉时的检查 |
-| KF | smoothed position and velocity while she is visible | 看得见时平滑她的位置和速度 |
-| Corridor predictor | while hidden: several guesses move along the corridors, split at junctions, are ruled out when seen empty | 看不见时：多个猜测沿走廊前进，路口分叉，看过没人就排除 |
-| Kinodynamic look-ahead search | from the drone's current velocity, try 9 accelerations × 6 steps of 0.35 s; choose the path that keeps her predicted positions at 0.7 / 1.4 / 2.1 s in view | 从无人机当前速度出发，试 9 种加速 × 6 步（每步 0.35 s），选能在 0.7 / 1.4 / 2.1 s 看见她预测位置的路线 |
-| A\* guide (hidden only) | long-range direction toward a spot that can see the best guess | 看不见时的远距离引导：朝能看见最可信猜测的位置飞 |
-| Motion layer | fly in any direction and turn at the same time; turning inertia (τ = 0.3 s) | 可以任意方向飞、同时转向；转向惯性（τ = 0.3 s） |
-| Safety layer | ≥ 30 cm from walls, ≤ 1.5 m/s, ≤ 2 m/s² | 离墙 ≥ 30 cm，速度 ≤ 1.5 m/s，加速度 ≤ 2 m/s² |
+![One control step](assets/pipeline.png)
 
-## Results / 结果
-
-Random-walk target that walks from the maze entrance to the exit, real-time simulation, maze `fr10x10l35t24g_s0`.
-人物随机行走（带惯性的随机加减速）从迷宫入口走到出口，实时仿真。
-
-| Version / 版本 | Episodes / 局数 | Reached the exit / 跟到终点 | Time out of view / 看不见的时间 |
-|---|---|---|---|
-| Before the drone-body fix (2026-10-12) / 修复无人机机身问题之前 | 20 (seeds 0–9 × 2) | 12/20 | 21% |
-| + predictor fixes, turning inertia / 预测器修复 + 转向惯性 | 5 (seeds 0,3,4,5,7) | 4/5 | 20% |
-| + A\* look-ahead planner / A\* 前瞻规划器 | 5 (seeds 0,3,4,5,7) | 5/5 | 9% |
-| + kinodynamic search (visible) / 运动学搜索（看得见时） | 10 (seeds 0–9) | 10/10 | 0.9% |
-| + kinodynamic search also while hidden, A\* guide / 看不见时也用运动学搜索 + A\* 引导 | 10 (seeds 0–9) | 10/10 | 1.4% |
-
-**Caveats / 说明**: small samples (5–10 episodes, real-time runs vary between runs); torso keypoints are simulated from engine bones with 2 px noise; the turning time constant is borrowed from a system-identification study of another drone, not measured on our Tello/RMTT. 样本小（5–10 局，实时运行每次不同）；关节点由引擎骨骼加 2 px 噪声模拟；转向时间常数借用其他无人机的辨识结果，尚未在我们的 Tello/RMTT 上实测。
-
-## Repository layout / 目录
-
-| Folder / 目录 | Content / 内容 |
+| Part | What it does |
 |---|---|
-| `experiments/` | all code (see below) / 全部代码 |
-| `results/metrics/` | one JSON line per episode for every batch run / 每次批量实验的逐局结果 |
-| `results/figures/` | figures, including the pipeline diagram / 图，包括 pipeline 图 |
-| `env_config/` | environment configuration and calibration data / 环境配置和标定数据 |
-| `docs/` | progress report and its sources / 进度报告及其源文件 |
+| Perception | Person box from the engine's object mask (oracle), or from YOLOE + YOLO11s-pose (real) |
+| Torso keypoints | Direction from the keypoint column; range from the neck–pelvis pixel length |
+| Measurement guards | Handle boxes cut by a wall corner or the image edge (sliver, cut top, fading) |
+| World-anchored filter | Kalman filter on the image box, held fixed on the floor while the camera moves; floor velocity from successive floor positions |
+| Corridor predictor | While she is hidden: up to 16 weighted guesses move along the corridor centre lines, split at junctions, and lose weight when the camera sees their place empty |
+| Kinodynamic look-ahead search | Beam search over the drone's position and velocity (9 actions × 6 layers of 0.35 s, ≤ 2 m/s²), keeping her predicted positions 0.7 / 1.4 / 2.1 s ahead in view at 1.5–3.3 m |
+| A\* guide | While she is hidden: guides the search toward a spot that can see the best guess |
+| Heading | Controlled separately (proportional + feed-forward, ≤ 90°/s, first-order lag τ = 0.3 s) |
+| Safety layer | Braking-distance limit that keeps the drone ≥ 30 cm from walls; speed ≤ 1.5 m/s |
 
-Not in this repository: videos, raw logs, per-step `.npy` logs, the UnrealZoo binary (~72 GB), third-party projects. 不在仓库里：视频、原始日志、逐步 `.npy` 数据、UnrealZoo 程序（约 72 GB）、第三方项目。
+![Look-ahead search](assets/lookahead_search.png)
 
-### Main files in `experiments/` / 主要代码
+## Results
 
-| File | English | 中文 |
+One maze layout (`fr10x10l35t24g_s0`, 10 × 10 cells of 2 m). The person walks at random from the entrance to the exit and changes speed every 1–3 s. All runs are in real time: 14 configurations × 20 episodes (seeds 0–9, two repeats each).
+
+| Configuration | Success | Time out of view |
 |---|---|---|
-| `uz_env.py` | UnrealZoo/UnrealCV wrapper: spawn, camera, mask detection | UnrealZoo/UnrealCV 封装：生成人物、相机、掩码检测 |
-| `uz_run.py` | closed-loop episode: measurement, KF, predictor, planners, motion; all switches at the top of the file | 闭环一局：测量、KF、预测器、规划器、运动；所有开关在文件开头 |
-| `uz_maze.py` | maze geometry, target walking model, corridor predictor | 迷宫几何、人物行走模型、走廊预测器 |
-| `uz_astar.py` | A\* viewing-spot planner on a 20 cm grid | 20 cm 网格上的 A\* 观察点规划器 |
-| `occl_core.py` | camera model, KF, controller, safety layer | 相机模型、KF、控制器、安全层 |
-| `uz_sweep.py` | batch presets (e.g. `rwkino`, `rwkinob`), per-step logs | 批量实验配置和逐步日志 |
-| `uz_video_maze.py` | run one episode and record first-person + top-view videos | 跑一局并录制第一视角和俯视视频 |
-| `uz_replay_steplog.py` | rebuild a video from a batch run's per-step log (skeleton, KF box, planner overlays) | 从批量运行的逐步日志重建视频（骨架、KF 框、规划叠加） |
-| `run_sweep_watchdog.sh`, `wait_then_run.sh` | restart a stalled batch run; wait until no other engine job is running | 批量运行卡住时自动重启；等其他引擎任务结束再运行 |
+| B0 Baseline (box only, no map-based prediction, no planner) | 2/20 | 48.5% |
+| M2 Box only (no keypoints) | 14/20 | 9.5% |
+| **M1 Full system** (oracle perception) | **20/20** | **1.0%** |
+| M3 YOLOE box | 17/20 | 9.4% |
+| M4 YOLOE + YOLO11s-pose | 19/20 | 3.1% |
+| M4k YOLOE + pose, keypoints first | 20/20 | 2.7% |
+| A1 No look-ahead (turn, then fly) | 18/20 | 10.0% |
+| A2 A\* instead of the search | 19/20 | 10.5% |
+| A3 Straight-line prediction | 16/20 | 7.5% |
+| A5 No predictor fixes | 20/20 | 1.2% |
+| A6 Stress test (A1 + A\* while hidden) | 17/20 | 16.5% |
+| S1 Turning lag τ = 0 / 0.5 s | 20/20 / 20/20 | 1.0% / 1.8% |
 
-Older scripts for the earlier L-shaped corridor stage (`run_metrics_test.py`, `run_*_margin30.py`, …) are kept for reference. 早期 L 形走廊阶段的脚本保留作参考。
+![Time out of view per episode](assets/time_out_of_view.png)
 
-## How to run / 运行方法
+What the ablations suggest:
 
-Requirements / 环境: Windows, conda env `unrealzoo` (Python + `unrealcv`), UnrealZoo UE5.7 binary (path set in `uz_env.py`).
+- The look-ahead search mainly prevents occlusions: without it, the person was seen again after a hidden period 7.1 times per episode instead of 1.1.
+- The torso keypoints matter about as much as the search, because the box alone gives a much larger position error (median about 32 cm instead of 9 cm).
+- The corridor predictor appears to help in finding the person again once she is lost, but at this sample size the effect is not clear.
+- The predictor fixes and the turning lag showed no clear effect.
+
+The computation per step is 6.4 ms without the detector and 73.7 ms with it (i9-13900KF, RTX 4090).
+
+![One occlusion](assets/occlusion_sequence.png)
+
+### Limitations
+
+- All results come from one maze layout, which was also used to tune the pipeline.
+- The wall map is given, and the drone's pose is read from the simulator.
+- The drone is a kinematic model (acceleration limit and yaw lag; no attitude dynamics).
+- With 20 episodes per configuration, 19/20 and 20/20 cannot be told apart.
+- Nothing has been flown on a real drone.
+
+## Repository layout
+
+| Path | Content |
+|---|---|
+| `experiments/` | Code (see below) |
+| `env_config/data/maze_fr10x10l35t24g_s0.json` | The maze layout used in all experiments |
+| `results/metrics/uz_sweep_rwfinal.jsonl`, `uz_sweep_rwfinalkpf.jsonl` | One JSON line per episode of the final evaluation |
+| `results/final_summary.csv` | Summary table of the 14 configurations |
+| `assets/` | Figures used in this README |
+
+### Code
+
+| File | Purpose |
+|---|---|
+| `uz_run.py` | One closed-loop episode: perception, guards, filter, predictors, planners, heading, motion; the switches are at the top of the file |
+| `uz_maze.py` | Maze generation and geometry, the person's random walk, the corridor predictor |
+| `uz_astar.py` | A\* viewing spots and the distance field of the A\* guide (20 cm grid) |
+| `occl_core.py` | Camera model, Kalman filter, controller, motion and safety layer |
+| `uz_env.py` | UnrealZoo / UnrealCV wrapper: engine start, character, camera, object mask |
+| `uz_routes.py` | Helpers for navigation points and routes in a scene |
+| `perception_server.py` | YOLOE-11l-seg + YOLO11s-pose as a local GPU service |
+| `dp_server.py`, `uz_collect_maze.py`, `dp_build_zarr.py` | OA-VAT diffusion planner (tried and dropped): service, training data, dataset |
+| `uz_sweep.py` | Batch runs; presets `rwfinal` and `rwfinalkpf` give the final evaluation |
+| `run_sweep_watchdog.sh`, `supervise.sh`, `kill_sweep.ps1` | Restart a stalled batch run |
+| `summarize_final.py` | Rebuild the result table from the episode logs |
+| `analyze_reacq_ev.py`, `uz_analyze_episode.py` | Analysis of re-acquisitions and of single logged episodes |
+| `uz_video_maze.py`, `uz_replay_steplog.py`, `make_phone_video.py` | Record an episode, or rebuild a video from a step log |
+
+## How to run
+
+Requirements: Windows, the UnrealZoo UE5.7 binary, and a conda env with `unrealcv`, `numpy`, `scipy` and `opencv`. The engine path is set in `uz_env.py`. Real perception (M3, M4, M4k) needs a second env with `ultralytics` and the YOLOE / YOLO11s-pose weights, with the service started first:
 
 ```bash
-# 10 episodes, full system (kinodynamic search in both phases) / 完整系统 10 局
-bash experiments/run_sweep_watchdog.sh 10 rwkinob
-
-# one recorded episode, seed 5 / 录制一局
-python experiments/uz_video_maze.py fr10x10l35t24g_s0 ca 5 rw --edgemeas --edgeaim --blindspeed --mapclamp --egocomp --worldpred --corridor --cleanvel --astar --T=1 --L=30 --anim --stop --ib --ff --kppos --kprange --rex --cf --rch --yi --et --kino --kinob --steps=2000
-
-# rebuild a video from a batch log, with planner overlays / 从批量日志重建视频并叠加规划信息
-python experiments/uz_replay_steplog.py rwkinob_fix_yi_et_kino_kinob_s5 1 903 300 overlay
+# in the env with ultralytics, from the folder that holds the weights
+python experiments/perception_server.py 6020 0.3 pose
 ```
 
-Only one project should run the UnrealZoo engine at a time: the cleanup step closes every UnrealZoo engine. 同一时间只运行一个使用 UnrealZoo 引擎的项目：清理步骤会关闭所有 UnrealZoo 引擎。
+```bash
+# final evaluation: 12 configurations x seeds 0-9 (run twice per seed by the preset)
+bash experiments/run_sweep_watchdog.sh 10 rwfinal
+bash experiments/run_sweep_watchdog.sh 10 rwfinalkpf
 
-### Main switches (`uz_run.py`) / 主要开关
+# result table
+python experiments/summarize_final.py
+```
 
-| Switch | English | 中文 |
-|---|---|---|
-| `KP_POS`, `KP_RANGE` | torso keypoints for direction and distance | 用躯干关节点测方向和距离 |
-| `SLIVER_GUARD`, `BODY_FIX` | ignore box size for slivers; read back the real camera pose | 细条框不用来测距；读回相机真实位置 |
-| `CORR_CAME_FROM`, `CORR_REACH` | "backward" = the cell she came from; restart over the reachable cells | "往回"指她来的格子；从可达格子重新撒猜测 |
-| `YAW_INERTIA` | turning inertia, τ = `YAW_DYN_TAU` | 转向惯性 |
-| `ET_PLANNER`, `ET_KINO` | look-ahead planning while visible; kinodynamic version | 看得见时的前瞻规划；运动学版本 |
-| `KINO_BLIND`, `KINO_GUIDE_W` | kinodynamic search while hidden; weight of the A\* guide | 看不见时的运动学搜索；A\* 引导权重 |
-| `KP_FIRST` | valid keypoints win over the box guards (off by default) | 关节点有效时优先于检测框检查（默认关闭） |
+The batch scripts close every running UnrealZoo engine when they clean up, so run one engine job at a time.
 
-## Related work / 参考
+## Main references
 
-This project adapts, in simplified form, ideas from / 本项目以简化形式借鉴了：
-- Fast-Planner (Zhou et al., 2019) — kinodynamic search from the current state / 从当前状态出发的运动学搜索
-- Fast-Tracker (Han et al., 2021) and Fast-Tracker 2.0 (Pan et al., 2021) — target tracking with kinodynamic search; human location from the neck–hip pixel length / 用运动学搜索跟踪目标；用颈到髋的像素长度估计人的位置
-- Elastic Tracker (Ji et al., ICRA 2022) — keep the target visible at future moments, yaw planned separately / 在未来时刻保持目标可见，偏航单独规划
-- Intention-Aware Planner (2023) — turning intention from body orientation / 用身体朝向判断转弯意图
-- UnrealZoo (2024) — simulation environments / 仿真环境
-
-Our part is combining these with a corridor-constrained predictor for mazes and testing it in this scenario. 我们的工作是把这些方法与迷宫走廊约束的预测器结合，并在这个场景中测试。
+- OA-VAT: H. Sun et al., "Instance-level visual active tracking with occlusion-aware planning", CVPR 2026
+- UnrealZoo: F. Zhong et al., ICCV 2025; UnrealCV: W. Qiu et al., ACM MM 2017
+- Fast-Planner (Zhou et al., RA-L 2019), Fast-Tracker (Han et al., ICRA 2021), Fast-Tracker 2.0 (Pan et al., 2021)
+- Elastic Tracker (Ji et al., ICRA 2022)
+- Road-map assisted tracking (Ulmke and Koch, 2006); negative information (Koch, 2007)
+- YOLOE (Wang et al., ICCV 2025); Ultralytics YOLO11
