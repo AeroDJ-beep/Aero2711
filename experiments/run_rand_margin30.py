@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Fully random target motion ('rand' profile: random route, speed re-drawn in
 [40, 99] cm/s every 2-4 s, ramped at up to 80 cm/s^2; nothing tied to the
@@ -9,6 +8,7 @@ Each episode also logs the target's speed change during the blind phase,
 so results can be split by whether the target actually changed speed while
 hidden. Does not modify run_metrics_test.py.
 """
+
 import os
 import sys
 import json
@@ -16,13 +16,12 @@ import time
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import run_metrics_test as m     # noqa: E402
+import run_metrics_test as m  # noqa: E402
 
 FULL = dict(VCAP=True, EDGEMEAS=True, EDGEAIM=True, BLINDSPEED=True, MAPCLAMP=True)
 NONE = dict(VCAP=False, EDGEMEAS=False, EDGEAIM=False, BLINDSPEED=False, MAPCLAMP=False)
 SEEDS = list(range(2000, 2040))
-JOBS = [('baseline_cv', 'cv', NONE), ('full_none', 'none', FULL),
-        ('full_cv', 'cv', FULL), ('full_ca', 'ca', FULL)]
+JOBS = [('baseline_cv', 'cv', NONE), ('full_none', 'none', FULL), ('full_cv', 'cv', FULL), ('full_ca', 'ca', FULL)]
 
 
 def blind_stats(steplog):
@@ -44,16 +43,22 @@ def blind_stats(steplog):
     s, n = best
     if n < 5:
         return None
-    seg = v[max(s - 1, 0):s + n + 1]
-    return dict(n_blind=int(n), v_start=float(seg[0]), v_end=float(seg[-1]),
-                dv=float(seg[-1] - seg[0]), dv_max=float(seg.max() - seg.min()))
+    seg = v[max(s - 1, 0) : s + n + 1]
+    return dict(
+        n_blind=int(n),
+        v_start=float(seg[0]),
+        v_end=float(seg[-1]),
+        dv=float(seg[-1] - seg[0]),
+        dv_max=float(seg.max() - seg.min()),
+    )
 
 
 def main():
     runner, ucv, z_trk = m.boot()
     out = []
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'results', 'metrics',
-                        'metrics_rand_margin30_2026-09-29.json')
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), '..', 'results', 'metrics', 'metrics_rand_margin30_2026-09-29.json'
+    )
     try:
         for tag, mode, flags in JOBS:
             for k, val in flags.items():
@@ -74,8 +79,10 @@ def main():
     for tag, _, _ in JOBS:
         rs = [r for r in out if r['cfg'] == tag]
         rq = [r['reacq'] for r in rs if r['reacq'] is not None]
-        print(f"{tag:12s} AR={np.mean([r['AR'] for r in rs]):6.1f} SR={np.mean([r['SR'] for r in rs]):.2f} "
-              f"hits={np.mean([r['hits'] for r in rs]):5.1f} reacq={np.mean(rq):6.1f} (n={len(rq)})")
+        print(
+            f'{tag:12s} AR={np.mean([r["AR"] for r in rs]):6.1f} SR={np.mean([r["SR"] for r in rs]):.2f} '
+            f'hits={np.mean([r["hits"] for r in rs]):5.1f} reacq={np.mean(rq):6.1f} (n={len(rq)})'
+        )
 
 
 if __name__ == '__main__':

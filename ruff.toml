@@ -1,0 +1,9 @@
+line-length = 120
+target-version = "py310"
+
+[format]
+quote-style = "single"
+skip-magic-trailing-comma = true
+
+[lint]
+select = ["UP009", "F401", "E9", "F63", "F7", "F82", "W291", "W293"]

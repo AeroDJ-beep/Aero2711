@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Engine-independent core of the occlusion-tracking pipeline (ported from
 run_metrics_test.py so it can run on UnrealZoo scenes):
 
@@ -10,21 +9,22 @@ run_metrics_test.py so it can run on UnrealZoo scenes):
 Geometry is injected through a `geo` object exposing clearance(x, y) -> cm and
 push_dir(x, y) -> outward unit normal, so any map representation works.
 """
+
 import os, sys, math
 import numpy as np
 import scipy.linalg
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'OA-VAT'))
-from kalman_filter import KalmanFilter          # noqa: E402
-from kalman_filter_ca import KalmanFilterCA     # noqa: E402
+from kalman_filter import KalmanFilter  # noqa: E402
+from kalman_filter_ca import KalmanFilterCA  # noqa: E402
 
 # camera / control constants (identical to the L-map setup)
 FX, CX0, CY0 = 364.3, 320.0, 240.0
 H_PERSON = 168.0
 D_SET, V_CAM_MAX, W_CAM_MAX = 250.0, 99.0, 30.0
-A_CAM, MARGIN = 200.0, 5.0            # cm/s^2 accel bound; camera-point clearance beyond the (already inset) navmesh free space
-FADE_FRAC = 0.5                       # fade trigger: npx < FADE_FRAC * recent healthy peak
+A_CAM, MARGIN = 200.0, 5.0  # cm/s^2 accel bound; camera-point clearance beyond the (already inset) navmesh free space
+FADE_FRAC = 0.5  # fade trigger: npx < FADE_FRAC * recent healthy peak
 
 
 class TightRMixin:
@@ -32,8 +32,12 @@ class TightRMixin:
 
     def project(self, mean, covariance):
         rs = self.R_SCALE
-        std = [rs * self._std_weight_position * mean[3], rs * self._std_weight_position * mean[3],
-               rs * 1e-1, rs * self._std_weight_position * mean[3]]
+        std = [
+            rs * self._std_weight_position * mean[3],
+            rs * self._std_weight_position * mean[3],
+            rs * 1e-1,
+            rs * self._std_weight_position * mean[3],
+        ]
         innovation_cov = np.diag(np.square(std))
         mean_p = np.dot(self._update_mat, mean)
         cov_p = np.linalg.multi_dot((self._update_mat, covariance, self._update_mat.T))
@@ -56,7 +60,7 @@ def make_kf(mode, qvel=None):
     return kf
 
 
-W_MAZE, V_BACK = 60.0, 50.0          # maze controller: faster yaw, allow backing off when too close
+W_MAZE, V_BACK = 60.0, 50.0  # maze controller: faster yaw, allow backing off when too close
 MAZE_CTRL = False
 
 
@@ -77,11 +81,14 @@ def dyn_step(geo, x, y, cvx, cvy, vdx, vdy, dt, a_cam=A_CAM, margin=MARGIN):
     d = geo.clearance(x, y)
     nx, ny = geo.push_dir(x, y)
     tx_, ty_ = -ny, nx
-    u0 = -(cvx * nx + cvy * ny); t0 = cvx * tx_ + cvy * ty_
-    ud = -(vdx * nx + vdy * ny); td = vdx * tx_ + vdy * ty_
+    u0 = -(cvx * nx + cvy * ny)
+    t0 = cvx * tx_ + cvy * ty_
+    ud = -(vdx * nx + vdy * ny)
+    td = vdx * tx_ + vdy * ty_
     s_ = max(d - margin, 0.0)
     u_cap = math.sqrt(lim * lim + 2.0 * a_cam * s_) - lim
-    u_hi = min(u0 + lim, u_cap); u_lo = u0 - lim
+    u_hi = min(u0 + lim, u_cap)
+    u_lo = u0 - lim
     braked = ud > u_cap
     u1 = min(max(ud, u_lo), max(u_hi, u_lo))
     rem = math.sqrt(max(lim * lim - (u1 - u0) ** 2, 0.0))
@@ -96,7 +103,7 @@ def safe_move(geo, px, py, qx, qy, step, margin=MARGIN):
         return qx, qy, False
     dp = geo.clearance(px, py)
     if dp < margin and dq > dp:
-        return qx, qy, True                 # already inside the margin: any move that gains clearance is allowed
+        return qx, qy, True  # already inside the margin: any move that gains clearance is allowed
     if geo.clearance(qx, py) >= margin:
         return qx, py, True
     if geo.clearance(px, qy) >= margin:
@@ -113,7 +120,7 @@ def kf_update_rscaled(kf, mean, cov, meas, sig_scale):
     pm, pc = kf.project(mean, cov)
     HPH = np.linalg.multi_dot((Hm, cov, Hm.T))
     R = pc - HPH
-    pc2 = HPH + (sig_scale ** 2) * R
+    pc2 = HPH + (sig_scale**2) * R
     chol, lower = scipy.linalg.cho_factor(pc2, lower=True, check_finite=False)
     K = scipy.linalg.cho_solve((chol, lower), np.dot(cov, Hm.T).T, check_finite=False).T
     y = meas - pm
@@ -133,9 +140,9 @@ def edge_measurement(box, u, w_good, mean):
     healthy width; only cx carries innovation (cy, a, h = predicted)."""
     bl, br = box[0], box[0] + box[2]
     if abs(br - u) <= abs(bl - u):
-        cxc = bl + w_good / 2.0          # right side clipped
+        cxc = bl + w_good / 2.0  # right side clipped
     else:
-        cxc = br - w_good / 2.0          # left side clipped
+        cxc = br - w_good / 2.0  # left side clipped
     return np.array([cxc, mean[1], mean[2], mean[3]], float)
 
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Remaining controls for the progress report (30 cm margin, 2026-09-29).
 Imports run_metrics_test.py without modifying it.
@@ -9,6 +8,7 @@ Imports run_metrics_test.py without modifying it.
   3.   Normal targets (profile 'rand'): baseline CV vs full architecture CV.
   4.   Extra P2a seeds 2020-2039: cv, ca, ca_blind0, cv_noclamp, ca_noclamp.
 """
+
 import os
 import sys
 import json
@@ -16,7 +16,7 @@ import time
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import run_metrics_test as m     # noqa: E402
+import run_metrics_test as m  # noqa: E402
 
 FULL = dict(VCAP=True, EDGEMEAS=True, EDGEAIM=True, BLINDSPEED=True, MAPCLAMP=True)
 NONE = dict(VCAP=False, EDGEMEAS=False, EDGEAIM=False, BLINDSPEED=False, MAPCLAMP=False)
@@ -58,8 +58,13 @@ JOBS = [
 def main():
     runner, ucv, z_trk = m.boot()
     out = []
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'results', 'metrics',
-                        'metrics_ablation_margin30_2026-09-29.json')
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        '..',
+        'results',
+        'metrics',
+        'metrics_ablation_margin30_2026-09-29.json',
+    )
     try:
         for tag, mode, flags, profiles, seeds, blind0 in JOBS:
             for k, v in flags.items():
@@ -82,9 +87,11 @@ def main():
         for prof in profiles:
             rs = [r for r in out if r['cfg'] == tag and r['profile'] == prof]
             rq = [r['reacq'] for r in rs if r['reacq'] is not None]
-            print(f"{tag:22s} {prof:4s} AR={np.mean([r['AR'] for r in rs]):6.1f} "
-                  f"SR={np.mean([r['SR'] for r in rs]):.2f} hits={np.mean([r['hits'] for r in rs]):5.1f} "
-                  f"reacq={np.mean(rq) if rq else float('nan'):6.1f} (n={len(rq)})")
+            print(
+                f'{tag:22s} {prof:4s} AR={np.mean([r["AR"] for r in rs]):6.1f} '
+                f'SR={np.mean([r["SR"] for r in rs]):.2f} hits={np.mean([r["hits"] for r in rs]):5.1f} '
+                f'reacq={np.mean(rq) if rq else float("nan"):6.1f} (n={len(rq)})'
+            )
 
 
 if __name__ == '__main__':

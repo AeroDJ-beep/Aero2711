@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 All L-corner experiments re-run with the acceleration-limited camera (--dyn),
 random target motion, 30 cm margin, seeds 2000-2039 (2026-09-30).
@@ -10,6 +9,7 @@ is used for the baseline and for the safety ablation.
 run_metrics_test.py is not modified; run_episode and dyn_step are
 recompiled with REPAIR / SAFETY switches.
 """
+
 import os
 import sys
 import json
@@ -18,7 +18,7 @@ import inspect
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import run_metrics_test as m     # noqa: E402
+import run_metrics_test as m  # noqa: E402
 
 # --- REPAIR switch (measurement repair on/off, fade flag kept) ---
 src = inspect.getsource(m.run_episode)
@@ -44,8 +44,9 @@ class CABlind0(ORIG_CA):
         super().__init__(coast_decay=0.0)
 
 
-BASE = dict(DYN=True, VCAP=False, SAFETY=False, EDGEMEAS=False, EDGEAIM=False,
-            BLINDSPEED=False, MAPCLAMP=False, REPAIR=True)
+BASE = dict(
+    DYN=True, VCAP=False, SAFETY=False, EDGEMEAS=False, EDGEAIM=False, BLINDSPEED=False, MAPCLAMP=False, REPAIR=True
+)
 FULL = dict(BASE, SAFETY=True, EDGEMEAS=True, EDGEAIM=True, BLINDSPEED=True, MAPCLAMP=True)
 
 
@@ -80,7 +81,13 @@ JOBS = [
     ('ca_noclamp', 'ca', cfg(FULL, MAPCLAMP=False), False, False),
     ('follow_em_clamp', 'cv', cfg(FULL, EDGEAIM=False, BLINDSPEED=False), False, False),
     ('follow_em_noclamp', 'cv', cfg(FULL, EDGEAIM=False, BLINDSPEED=False, MAPCLAMP=False), False, False),
-    ('follow_noem_noclamp', 'cv', cfg(FULL, EDGEAIM=False, BLINDSPEED=False, EDGEMEAS=False, MAPCLAMP=False), False, False),
+    (
+        'follow_noem_noclamp',
+        'cv',
+        cfg(FULL, EDGEAIM=False, BLINDSPEED=False, EDGEMEAS=False, MAPCLAMP=False),
+        False,
+        False,
+    ),
 ]
 SEEDS = list(range(2000, 2040))
 
@@ -102,15 +109,20 @@ def blind_stats(steplog):
     s, n = best
     if n < 5:
         return None
-    seg = v[max(s - 1, 0):s + n + 1]
+    seg = v[max(s - 1, 0) : s + n + 1]
     return dict(n_blind=int(n), dv_max=float(seg.max() - seg.min()))
 
 
 def main():
     runner, ucv, z_trk = m.boot()
     out = []
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'results', 'metrics',
-                        'metrics_dyn_all_margin30_2026-09-30.json')
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        '..',
+        'results',
+        'metrics',
+        'metrics_dyn_all_margin30_2026-09-30.json',
+    )
     try:
         for tag, mode, flags, blind0, keep in JOBS:
             for k, v in flags.items():
@@ -136,8 +148,10 @@ def main():
     for tag, *_ in JOBS:
         rs = [r for r in out if r['cfg'] == tag]
         rq = [r['reacq'] for r in rs if r['reacq'] is not None]
-        print(f"{tag:20s} AR={np.mean([r['AR'] for r in rs]):6.1f} SR={np.mean([r['SR'] for r in rs]):.2f} "
-              f"hits={np.mean([r['hits'] for r in rs]):5.1f} reacq={np.mean(rq) if rq else float('nan'):6.1f} (n={len(rq)})")
+        print(
+            f'{tag:20s} AR={np.mean([r["AR"] for r in rs]):6.1f} SR={np.mean([r["SR"] for r in rs]):.2f} '
+            f'hits={np.mean([r["hits"] for r in rs]):5.1f} reacq={np.mean(rq) if rq else float("nan"):6.1f} (n={len(rq)})'
+        )
 
 
 if __name__ == '__main__':

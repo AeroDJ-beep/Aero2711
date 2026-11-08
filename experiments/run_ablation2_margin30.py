@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Two follow-up controls (30 cm margin, 2026-09-29). run_metrics_test.py is not
 modified; a patched copy of run_episode is compiled in its namespace.
@@ -10,6 +9,7 @@ B. Confound check: fade-frame flag kept (edgeaim/blindspeed still switch on
    during fade-out) but the measurement repair itself disabled -> the raw
    clipped box is fed to the KF.
 """
+
 import os
 import sys
 import json
@@ -18,7 +18,7 @@ import inspect
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import run_metrics_test as m     # noqa: E402
+import run_metrics_test as m  # noqa: E402
 
 src = inspect.getsource(m.run_episode)
 a = 'if EDGEMEAS and mean is not None and w_good is not None:\n                    u = edge_u'
@@ -50,8 +50,13 @@ JOBS = [
 def main():
     runner, ucv, z_trk = m.boot()
     out = []
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'results', 'metrics',
-                        'metrics_ablation2_margin30_2026-09-29.json')
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        '..',
+        'results',
+        'metrics',
+        'metrics_ablation2_margin30_2026-09-29.json',
+    )
     try:
         for tag, flags in JOBS:
             for k, v in flags.items():
@@ -73,8 +78,10 @@ def main():
         for prof in ('p2', 'p2a'):
             rs = [r for r in out if r['cfg'] == tag and r['profile'] == prof]
             rq = [r['reacq'] for r in rs if r['reacq'] is not None]
-            print(f"{tag:18s} {prof:4s} AR={np.mean([r['AR'] for r in rs]):6.1f} "
-                  f"SR={np.mean([r['SR'] for r in rs]):.2f} reacq={np.mean(rq) if rq else float('nan'):6.1f} (n={len(rq)})")
+            print(
+                f'{tag:18s} {prof:4s} AR={np.mean([r["AR"] for r in rs]):6.1f} '
+                f'SR={np.mean([r["SR"] for r in rs]):.2f} reacq={np.mean(rq) if rq else float("nan"):6.1f} (n={len(rq)})'
+            )
 
 
 if __name__ == '__main__':

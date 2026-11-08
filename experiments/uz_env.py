@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """UnrealZoo environment wrapper for the occlusion-tracking pipeline.
 
 Replaces the FlexibleRoom-specific plumbing in run_metrics_test.py:
@@ -12,7 +11,8 @@ Replaces the FlexibleRoom-specific plumbing in run_metrics_test.py:
 Geometry helpers mirror the L-map functions (dist_to_walls, wall_push_dir,
 edge_u, map_clamp) so the estimator / safety code can be reused unchanged.
 """
-import os, sys, json, time, math, re
+
+import os, json, time, math, re
 import numpy as np
 import cv2
 from unrealcv.launcher import RunUnreal
@@ -23,16 +23,16 @@ EXE = r'E:\UnrealZoo\UnrealZoo_UE5_7_Win64_v3.1.0\Windows\UnrealZoo_UE5_7\Binari
 CFG_DIR = os.path.join(HERE, '..', 'unrealzoo-gym', 'gym_unrealcv', 'envs', 'setting', 'Track')
 DATA_DIR = os.path.join(HERE, '..', 'env_config', 'data')
 W, H = 640, 480
-FOV = 82.6                         # Tello-class camera, same as the L-map setup
-FX = (W / 2.0) / math.tan(math.radians(FOV / 2.0))   # 364.3
+FOV = 82.6  # Tello-class camera, same as the L-map setup
+FX = (W / 2.0) / math.tan(math.radians(FOV / 2.0))  # 364.3
 CX0, CY0 = W / 2.0, H / 2.0
-H_PERSON = 168.0                   # cm, character height used for range from box height
-CAM_OFF = (-19.0, 0.0, -40.0)      # camera offset from the tracker actor origin (x fwd, y, z up): ~100 cm above floor.
-                                   # x=-19 cancels the character's built-in +19 cm -> camera at the capsule centre, so a body
-                                   # near a wall is only pushed AWAY from it (old 40 put the body 59 cm behind the camera;
-                                   # depenetration could push it through a wall and leave the camera inside it: blank mask)
-PITCH = 0.0                        # level camera: head row well above the horizon -> well-conditioned head-row range
-GRID = 25.0                        # navmesh sampling / grid cell (cm)
+H_PERSON = 168.0  # cm, character height used for range from box height
+CAM_OFF = (-19.0, 0.0, -40.0)  # camera offset from the tracker actor origin (x fwd, y, z up): ~100 cm above floor.
+# x=-19 cancels the character's built-in +19 cm -> camera at the capsule centre, so a body
+# near a wall is only pushed AWAY from it (old 40 put the body 59 cm behind the camera;
+# depenetration could push it through a wall and leave the camera inside it: blank mask)
+PITCH = 0.0  # level camera: head row well above the horizon -> well-conditioned head-row range
+GRID = 25.0  # navmesh sampling / grid cell (cm)
 
 
 def _floats(s):
@@ -41,15 +41,20 @@ def _floats(s):
 
 class NavGrid:
     """Free-space grid from navmesh points; occupied = everything else."""
+
     def __init__(self, pts, cell=GRID, pad=8):
         self.cell = cell
-        self.x0 = pts[:, 0].min() - pad * cell; self.y0 = pts[:, 1].min() - pad * cell
+        self.x0 = pts[:, 0].min() - pad * cell
+        self.y0 = pts[:, 1].min() - pad * cell
         nx = int((pts[:, 0].max() - self.x0) / cell) + pad + 1
         ny = int((pts[:, 1].max() - self.y0) / cell) + pad + 1
         free = np.zeros((ny, nx), np.uint8)
-        ix = np.round((pts[:, 0] - self.x0) / cell).astype(int); iy = np.round((pts[:, 1] - self.y0) / cell).astype(int)
+        ix = np.round((pts[:, 0] - self.x0) / cell).astype(int)
+        iy = np.round((pts[:, 1] - self.y0) / cell).astype(int)
         free[iy, ix] = 1
-        free = cv2.morphologyEx(free, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))   # fill gaps / smooth kinks (<= 2 cells)
+        free = cv2.morphologyEx(
+            free, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8)
+        )  # fill gaps / smooth kinks (<= 2 cells)
         # navmesh points already keep the character capsule (~34 cm) off the walls, so
         # one cell of dilation (25 cm) is still wall-free for the camera point
         free = cv2.dilate(free, np.ones((3, 3), np.uint8))
@@ -71,12 +76,14 @@ class NavGrid:
         self.pts = pts[:, :2].astype(float)
 
     def cell_of(self, x, y):
-        ix = int(round((x - self.x0) / self.cell)); iy = int(round((y - self.y0) / self.cell))
+        ix = int(round((x - self.x0) / self.cell))
+        iy = int(round((y - self.y0) / self.cell))
         h, w = self.free.shape
         return min(max(iy, 0), h - 1), min(max(ix, 0), w - 1)
 
     def clearance(self, x, y):
-        iy, ix = self.cell_of(x, y); return float(self.dist[iy, ix])
+        iy, ix = self.cell_of(x, y)
+        return float(self.dist[iy, ix])
 
     def push_dir(self, x, y):
         iy, ix = self.cell_of(x, y)
@@ -88,11 +95,13 @@ class NavGrid:
         return float(self.gx[iy, ix]), float(self.gy[iy, ix])
 
     def is_free(self, x, y):
-        iy, ix = self.cell_of(x, y); return bool(self.free[iy, ix])
+        iy, ix = self.cell_of(x, y)
+        return bool(self.free[iy, ix])
 
     def nearest_free(self, x, y):
         d2 = (self.pts[:, 0] - x) ** 2 + (self.pts[:, 1] - y) ** 2
-        k = int(np.argmin(d2)); return float(self.pts[k, 0]), float(self.pts[k, 1]), math.sqrt(float(d2[k]))
+        k = int(np.argmin(d2))
+        return float(self.pts[k, 0]), float(self.pts[k, 1]), math.sqrt(float(d2[k]))
 
 
 class UZEnv:
@@ -109,29 +118,49 @@ class UZEnv:
         self.c = self.api.client
         self.verbose = verbose
         self.tgt, self.trk = 'tgt', 'trk'
-        self.cam = None; self.tgt_rgb = None; self.nav = None; self.z = None; self.z_floor = None
+        self.cam = None
+        self.tgt_rgb = None
+        self.nav = None
+        self.z = None
+        self.z_floor = None
 
     # ---------------- setup ----------------
     def calibrate_height(self, spot, dist=450.0):
         """Measure the target's effective height (cm) from its full-body box at a
         known range on open floor; returns H such that box_h = FX * H / range."""
         x, y = spot
-        self.c.request([f'vset /object/{self.tgt}/location {x} {y} {self.z}', f'vset /object/{self.tgt}/rotation 0 90 0'], -1)
+        self.c.request(
+            [f'vset /object/{self.tgt}/location {x} {y} {self.z}', f'vset /object/{self.tgt}/rotation 0 90 0'], -1
+        )
         self.set_tracker(x, y - dist, 90.0)
         time.sleep(0.8)
         box, npx, _, _ = self.frame()
         if box is None or box[1] <= 1 or box[1] + box[3] >= H - 1:
             return None
         return box[3] * dist / FX
+
     def spawn(self, tgt_xy=None, trk_xy=None, yaw=90.0, tgt_asset=None, tgt_app=None, tgt_scale=None):
         s0 = self.starts[0]
-        tx, ty = (tgt_xy if tgt_xy is not None else s0[:2])
-        kx, ky = (trk_xy if trk_xy is not None else (tx - 250 * math.cos(math.radians(yaw)), ty - 250 * math.sin(math.radians(yaw))))
+        tx, ty = tgt_xy if tgt_xy is not None else s0[:2]
+        kx, ky = (
+            trk_xy
+            if trk_xy is not None
+            else (tx - 250 * math.cos(math.radians(yaw)), ty - 250 * math.sin(math.radians(yaw)))
+        )
         z = s0[2]
-        for name, (x, y), asset in [(self.tgt, (tx, ty), tgt_asset or self.char_path), (self.trk, (kx, ky), self.char_path)]:
-            self.c.request([f'vset /objects/spawn_from_path {asset} {name}',
-                            f'vset /object/{name}/location {x} {y} {z}',
-                            f'vset /object/{name}/rotation 0 {yaw} 0', f'vbp {name} set_phy 0'], -1)
+        for name, (x, y), asset in [
+            (self.tgt, (tx, ty), tgt_asset or self.char_path),
+            (self.trk, (kx, ky), self.char_path),
+        ]:
+            self.c.request(
+                [
+                    f'vset /objects/spawn_from_path {asset} {name}',
+                    f'vset /object/{name}/location {x} {y} {z}',
+                    f'vset /object/{name}/rotation 0 {yaw} 0',
+                    f'vbp {name} set_phy 0',
+                ],
+                -1,
+            )
         if tgt_app is not None:
             self.c.request(f'vbp {self.tgt} set_app {tgt_app}')
         if tgt_scale is not None:
@@ -144,7 +173,7 @@ class UZEnv:
                 self.c.request(f'vset /object/{o}/location 100000 100000 {z + 500}')
         cams = self.c.request('vget /cameras').split()
         self.cam = next(i for i, n in enumerate(cams) if f'CID-{self.trk}-' in n)
-        self.c.request(f'vset /object/{self.trk}/hide')      # camera sits inside the tracker capsule: hide its own mesh
+        self.c.request(f'vset /object/{self.trk}/hide')  # camera sits inside the tracker capsule: hide its own mesh
         self.c.request(f'vbp {self.trk} set_cam {CAM_OFF[0]} {CAM_OFF[1]} {CAM_OFF[2]} 0 {PITCH} 0')
         self.c.request(f'vset /camera/{self.cam}/fov {FOV}')
         time.sleep(0.5)
@@ -153,22 +182,26 @@ class UZEnv:
         # (x, y) as the CAMERA position ("camera = vehicle", as in the L map), so the
         # safety layer, ranges and clearances all refer to the camera point.
         self.cam_off = (0.0, 0.0)
-        self.c.request([f'vset /object/{self.trk}/location {kx} {ky} {z}', f'vset /object/{self.trk}/rotation 0 0 0'], -1)
+        self.c.request(
+            [f'vset /object/{self.trk}/location {kx} {ky} {z}', f'vset /object/{self.trk}/rotation 0 0 0'], -1
+        )
         time.sleep(0.6)
         cl = _floats(self.c.request(f'vget /camera/{self.cam}/location'))
         al = _floats(self.c.request(f'vget /object/{self.trk}/location'))
         if len(cl) >= 2 and len(al) >= 2:
             self.cam_off = (cl[0] - al[0], cl[1] - al[1])
-        self.cam_dz = (cl[2] - al[2]) if len(cl) >= 3 and len(al) >= 3 else 0.0      # camera height above the actor origin
+        self.cam_dz = (cl[2] - al[2]) if len(cl) >= 3 and len(al) >= 3 else 0.0  # camera height above the actor origin
         raw = self.c.request(f'vget /object/{self.tgt}/color')
         self.tgt_rgb = [int(v) for v in re.findall(r'[RGB]=(\d+)', raw)]
         self.z_floor = _floats(self.c.request(f'vget /object/{self.tgt}/location'))[2]
         # teleport height = the settled actor origin, not the config start height
         # (FlexibleRoom: config 159 vs settled 178 -> the capsule sank and bobbed every frame)
         self.z = self.z_floor
-        self.cam_z = self.z + self.cam_dz                    # world height of the camera (fixed altitude)
+        self.cam_z = self.z + self.cam_dz  # world height of the camera (fixed altitude)
         if self.verbose:
-            print(f'[uz] spawned on {self.map}: tgt colour {self.tgt_rgb}, tracker cam {self.cam}, fov {self.c.request(f"vget /camera/{self.cam}/fov")}')
+            print(
+                f'[uz] spawned on {self.map}: tgt colour {self.tgt_rgb}, tracker cam {self.cam}, fov {self.c.request(f"vget /camera/{self.cam}/fov")}'
+            )
 
     def place_tracker_behind(self, dist=250.0, min_clear=60.0, heading=None):
         """Put the tracker on free space `dist` cm behind the target (along the
@@ -193,7 +226,9 @@ class UZEnv:
         pool = pool[np.argsort(ang[pool])][:12]
         cands += [(180 + float(ang[i]), float(P[i, 0]), float(P[i, 1])) for i in pool]
         if not cands:
-            x, y, _ = self.nav.nearest_free(gx - dist * math.cos(math.radians(gyaw)), gy - dist * math.sin(math.radians(gyaw)))
+            x, y, _ = self.nav.nearest_free(
+                gx - dist * math.cos(math.radians(gyaw)), gy - dist * math.sin(math.radians(gyaw))
+            )
             cands = [(0, x, y)]
         # keep the first candidate from which the target is actually visible (walls, door frames)
         for _, x, y in cands:
@@ -217,11 +252,14 @@ class UZEnv:
             pts = np.load(p)
         if pts is None or len(pts) < 100:
             r = self.c.request(f'vget /reachablepoints {GRID:g}', timeout=120)
-            j = json.loads(r); pts = np.array([[q[0], q[1], q[2]] for q in j['points']], float)
+            j = json.loads(r)
+            pts = np.array([[q[0], q[1], q[2]] for q in j['points']], float)
             np.save(p, pts)
         self.nav = NavGrid(pts)
         if self.verbose:
-            print(f'[uz] navgrid: {len(pts)} points, grid {self.nav.free.shape}, boundary cells {len(self.nav.boundary)}')
+            print(
+                f'[uz] navgrid: {len(pts)} points, grid {self.nav.free.shape}, boundary cells {len(self.nav.boundary)}'
+            )
         return self.nav
 
     # ---------------- geometry (mirror of the L-map helpers) ----------------
@@ -261,8 +299,10 @@ class UZEnv:
         ox, oy = getattr(self, 'cam_off', (0.0, 0.0))
         c_, s_ = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
         ax_, ay_ = x - (c_ * ox - s_ * oy), y - (s_ * ox + c_ * oy)
-        self.c.request([f'vset /object/{self.trk}/location {ax_} {ay_} {self.z}',
-                        f'vset /object/{self.trk}/rotation 0 {yaw} 0'], -1)
+        self.c.request(
+            [f'vset /object/{self.trk}/location {ax_} {ay_} {self.z}', f'vset /object/{self.trk}/rotation 0 {yaw} 0'],
+            -1,
+        )
 
     def target_pose(self):
         loc = _floats(self.c.request(f'vget /object/{self.tgt}/location'))
@@ -282,7 +322,7 @@ class UZEnv:
             # the engine echoes the path twice; keep the first pass
             n = len(P)
             if n >= 4 and np.allclose(P[0], P[n // 2]):
-                P = P[:n // 2]
+                P = P[: n // 2]
             return P
         except Exception:
             return np.zeros((0, 2))
@@ -293,7 +333,11 @@ class UZEnv:
     def random_goal(self, rng, from_xy, dmin=1200.0):
         P = self.nav.pts
         d = np.hypot(P[:, 0] - from_xy[0], P[:, 1] - from_xy[1])
-        cand = np.where((d >= dmin) & (np.array([self.nav.clearance(px, py) for px, py in P]) > 60.0))[0] if len(P) < 5000 else np.where(d >= dmin)[0]
+        cand = (
+            np.where((d >= dmin) & (np.array([self.nav.clearance(px, py) for px, py in P]) > 60.0))[0]
+            if len(P) < 5000
+            else np.where(d >= dmin)[0]
+        )
         if len(cand) == 0:
             cand = np.argsort(d)[-20:]
         k = int(rng.choice(cand))

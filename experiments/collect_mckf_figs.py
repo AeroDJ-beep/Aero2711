@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Collect real data for the two MC-KF illustrations (2026-09-30):
   - first-person view of a fade-out frame (camera image, cut-off box,
@@ -8,15 +7,15 @@ Collect real data for the two MC-KF illustrations (2026-09-30):
 Full system with CV, random target motion, 30 cm margin. Does not modify
 run_metrics_test.py; it only wraps functions at run time.
 """
+
 import os
 import sys
 import json
 import math
-import numpy as np
 import cv2
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import run_metrics_test as m     # noqa: E402
+import run_metrics_test as m  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'results', 'logs', 'mckf_figs_dyn')
 os.makedirs(OUT, exist_ok=True)
@@ -35,9 +34,10 @@ def wrap_read(ucv):
             state['k'] += 1
             if state['k'] in state['save']:
                 lit = orig(1, 'lit', 'fast')
-                cv2.imwrite(os.path.join(OUT, f"s{state['seed']}_k{state['k']:03d}_lit.png"), lit)
-                cv2.imwrite(os.path.join(OUT, f"s{state['seed']}_k{state['k']:03d}_mask.png"), img)
+                cv2.imwrite(os.path.join(OUT, f's{state["seed"]}_k{state["k"]:03d}_lit.png'), lit)
+                cv2.imwrite(os.path.join(OUT, f's{state["seed"]}_k{state["k"]:03d}_mask.png'), img)
         return img
+
     ucv.read_image = read_image
 
 
@@ -83,15 +83,21 @@ def main():
             fades = [e for e in edge if e[3] >= 0]
             moved = [c for c in clamp if c['clamped']]
             dmax = max([math.dist(c['pre'], c['post']) for c in moved], default=0.0)
-            summary.append(dict(seed=seed, reacq=res['reacq'], n_fade=len(fades), n_clamp=len(moved), clamp_max_cm=dmax))
-            print(summary[-1]); sys.stdout.flush()
+            summary.append(
+                dict(seed=seed, reacq=res['reacq'], n_fade=len(fades), n_clamp=len(moved), clamp_max_cm=dmax)
+            )
+            print(summary[-1])
+            sys.stdout.flush()
             if fades and moved:
                 ks = [int(e[0]) for e in fades]
                 res2, edge2, clamp2, log2 = run(ucv, z_trk, seed, save=ks)
-                dump = dict(seed=seed, res=res2,
-                            edge=[[float(x) for x in e] for e in edge2],
-                            clamp=clamp2,
-                            steplog=[[float(v) for v in r] for r in log2])
+                dump = dict(
+                    seed=seed,
+                    res=res2,
+                    edge=[[float(x) for x in e] for e in edge2],
+                    clamp=clamp2,
+                    steplog=[[float(v) for v in r] for r in log2],
+                )
                 with open(os.path.join(OUT, f's{seed}.json'), 'w') as f:
                     json.dump(dump, f)
     finally:

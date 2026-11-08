@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 """Seed-2005: record kinematic-vcap vs dynamic (--dyn) episodes, plot
 UAV velocity decomposed into x/y components + trajectory + clearance."""
+
 import os, sys, time, math
 import numpy as np
 
@@ -9,6 +9,7 @@ sys.path.insert(0, SCRATCH_OLD)
 import run_metrics_test as M
 import cv2
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mp
@@ -26,8 +27,7 @@ def episode(ucv, z_trk, dyn):
     seg_len = np.linalg.norm(np.diff(route, axis=0), axis=1)
     sprint_s = float(seg_len[:idx].sum())
     sprint_a = float(rng.uniform(-M.A_MAX, M.A_MAX))
-    P, YAW = M.walk(route, rng, M.N_STEPS, sprint_s=sprint_s,
-                    rand_accel=True, sprint_a=sprint_a)
+    P, YAW = M.walk(route, rng, M.N_STEPS, sprint_s=sprint_s, rand_accel=True, sprint_a=sprint_a)
     d0 = route[1] - route[0]
     u0 = d0 / np.linalg.norm(d0)
     tx, ty = route[0] - u0 * M.D_SET
@@ -94,7 +94,7 @@ def episode(ucv, z_trk, dyn):
         place()
         L['cam'].append((tx, ty))
         L['det'].append(det_ok)
-        L['vx'].append((tx - px0) / M.DT)     # realized velocity components
+        L['vx'].append((tx - px0) / M.DT)  # realized velocity components
         L['vy'].append((ty - py0) / M.DT)
         L['vdes'].append(v_cmd)
         L['clr'].append(M.dist_to_walls(tx, ty))
@@ -120,9 +120,8 @@ if __name__ == '__main__':
 
     # --- panel 1: trajectory colored by speed (dyn run) ---
     ax0 = fig.add_subplot(gs[0])
-    for (x0, x1, y0, y1) in M.WALLS:
-        ax0.add_patch(mp.Rectangle((x0, y0), x1 - x0, y1 - y0,
-                                   facecolor='#8f8f8f', edgecolor='k', zorder=3))
+    for x0, x1, y0, y1 in M.WALLS:
+        ax0.add_patch(mp.Rectangle((x0, y0), x1 - x0, y1 - y0, facecolor='#8f8f8f', edgecolor='k', zorder=3))
     cam = Ld['cam']
     spd = np.hypot(Ld['vx'], Ld['vy'])
     pts = cam.reshape(-1, 1, 2)
@@ -132,12 +131,17 @@ if __name__ == '__main__':
     ax0.add_collection(lc)
     plt.colorbar(lc, ax=ax0, fraction=0.025, pad=0.01, label='UAV speed (cm/s)')
     blind = ~Ld['det']
-    ax0.plot(cam[blind, 0], cam[blind, 1], '.', ms=3, color='#C81E1E', zorder=6,
-             label='blind steps')
-    ax0.set_xlim(-760, 180); ax0.set_ylim(-740, 470)
-    ax0.set_aspect('equal'); ax0.grid(alpha=0.2); ax0.legend(loc='lower right', fontsize=9)
-    ax0.set_title(f'UAV trajectory colored by speed - seed {SEED}, dynamic mode '
-                  f'(A_CAM={M.A_CAM:.0f} cm/s², sqrt braking law)', fontsize=12, fontweight='bold')
+    ax0.plot(cam[blind, 0], cam[blind, 1], '.', ms=3, color='#C81E1E', zorder=6, label='blind steps')
+    ax0.set_xlim(-760, 180)
+    ax0.set_ylim(-740, 470)
+    ax0.set_aspect('equal')
+    ax0.grid(alpha=0.2)
+    ax0.legend(loc='lower right', fontsize=9)
+    ax0.set_title(
+        f'UAV trajectory colored by speed - seed {SEED}, dynamic mode (A_CAM={M.A_CAM:.0f} cm/s², sqrt braking law)',
+        fontsize=12,
+        fontweight='bold',
+    )
 
     # --- panel 2: velocity components ---
     ax1 = fig.add_subplot(gs[1])
@@ -147,7 +151,8 @@ if __name__ == '__main__':
     ax1.plot(t, Lk['vy'], color='#E07B00', lw=0.8, alpha=0.35, label='vy (kinematic vcap)')
     for s in np.where(blind)[0]:
         ax1.axvspan(t[s], t[s] + M.DT, color='#C81E1E', alpha=0.06, lw=0)
-    ax1.set_ylabel('velocity (cm/s)'); ax1.grid(alpha=0.25)
+    ax1.set_ylabel('velocity (cm/s)')
+    ax1.grid(alpha=0.25)
     ax1.legend(loc='lower left', fontsize=8.5, ncol=2)
     ax1.set_title('UAV velocity, x / y components (red band = occlusion)', fontsize=11)
 
@@ -156,7 +161,8 @@ if __name__ == '__main__':
     ax2.plot(t, np.hypot(Lk['vx'], Lk['vy']), color='#888888', lw=1.0, label='|v| kinematic vcap')
     ax2.plot(t, spd, color='#2E7D32', lw=1.4, label='|v| dynamic')
     ax2.plot(t, Ld['vdes'], color='#999999', lw=0.8, ls=':', label='controller desired |v|')
-    ax2.set_ylabel('speed (cm/s)'); ax2.set_xlabel('time (s)')
+    ax2.set_ylabel('speed (cm/s)')
+    ax2.set_xlabel('time (s)')
     ax2b = ax2.twinx()
     ax2b.plot(t, Ld['clr'], color='#8B2FC9', lw=1.0, alpha=0.7)
     ax2b.axhline(15, color='#8B2FC9', ls='--', lw=0.8, alpha=0.7)
@@ -164,9 +170,9 @@ if __name__ == '__main__':
     ax2b.tick_params(axis='y', labelcolor='#8B2FC9')
     for s in np.where(blind)[0]:
         ax2.axvspan(t[s], t[s] + M.DT, color='#C81E1E', alpha=0.06, lw=0)
-    ax2.grid(alpha=0.25); ax2.legend(loc='lower left', fontsize=8.5)
-    ax2.set_title('speed magnitude vs clearance (purple, right axis; dashed = 15 cm margin)',
-                  fontsize=11)
+    ax2.grid(alpha=0.25)
+    ax2.legend(loc='lower left', fontsize=8.5)
+    ax2.set_title('speed magnitude vs clearance (purple, right axis; dashed = 15 cm margin)', fontsize=11)
 
     plt.savefig(OUT, facecolor='white', bbox_inches='tight')
     print('saved:', OUT)

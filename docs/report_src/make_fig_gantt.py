@@ -2,14 +2,14 @@
 import os
 import datetime as dt
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.patches import Patch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUTS = [os.path.join(HERE, 'figs', 'fig_gantt.png'),
-        os.path.join(HERE, '..', 'latex', 'figs', 'fig_gantt.png')]
+OUTS = [os.path.join(HERE, 'figs', 'fig_gantt.png'), os.path.join(HERE, '..', 'latex', 'figs', 'fig_gantt.png')]
 D = dt.date.fromisoformat
 TODAY, DUE = D('2026-10-01'), D('2026-11-08')
 

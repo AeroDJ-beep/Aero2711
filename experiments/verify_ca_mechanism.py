@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Why is CA worse than CV inside the full architecture (30 cm margin runs,
 2026-09-28)?  Hypothesis under test: the CA filter carries an acceleration
@@ -15,6 +14,7 @@ The KF classes are wrapped to log the state every step, so for each episode
 we get the filter state at blind onset and the signed re-acquisition error.
 Does not modify run_metrics_test.py.
 """
+
 import os
 import sys
 import json
@@ -22,7 +22,7 @@ import time
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import run_metrics_test as m     # noqa: E402
+import run_metrics_test as m  # noqa: E402
 
 LOG = []
 
@@ -44,6 +44,7 @@ def logged(base, **kw):
             LOG.append(('u', mean.copy(), np.array(meas, float).copy()))
             mean, cov = super().update(mean, cov, meas)
             return mean, cov
+
     return K
 
 
@@ -51,7 +52,7 @@ def analyse(log):
     """Find the first update after >=5 consecutive predict-only steps.
     Return state at blind onset, signed error and the blind-phase
     displacement split into velocity and acceleration parts."""
-    steps = []                      # (predicted mean, update record or None)
+    steps = []  # (predicted mean, update record or None)
     for i, rec in enumerate(log):
         if rec[0] == 'p':
             nxt = log[i + 1] if i + 1 < len(log) and log[i + 1][0] == 'u' else None
@@ -60,16 +61,20 @@ def analyse(log):
     for pred, upd in steps:
         if upd is None:
             if run == 0:
-                onset = pred                # state at the first blind step
+                onset = pred  # state at the first blind step
             run += 1
             continue
         if run >= 5:
             n = run
             ax0 = onset[8] if len(onset) >= 10 else 0.0
-            return dict(err=float(upd[1][0] - upd[2][0]), n_blind=n,
-                        vx0=float(onset[4]), ax0=float(ax0),
-                        acc_part=float(0.5 * ax0 * n * n),
-                        vel_part=float(onset[4] * n))
+            return dict(
+                err=float(upd[1][0] - upd[2][0]),
+                n_blind=n,
+                vx0=float(onset[4]),
+                ax0=float(ax0),
+                acc_part=float(0.5 * ax0 * n * n),
+                vel_part=float(onset[4] * n),
+            )
         run = 0
     return None
 
@@ -102,8 +107,13 @@ def main():
                     print('[ep]', json.dumps(res))
                     sys.stdout.flush()
     finally:
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'results', 'metrics',
-                            'metrics_ca_mechanism_margin30_2026-09-28.json')
+        path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            '..',
+            'results',
+            'metrics',
+            'metrics_ca_mechanism_margin30_2026-09-28.json',
+        )
         with open(path, 'w') as f:
             json.dump(out, f, indent=1)
         print('saved:', path)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Closed-loop smoke test of the frozen v2 environment: AR / EL / SR metrics.
 
@@ -16,6 +15,7 @@ Modes x seeds, same-seed pairing. Protocol: 500 steps, visible = rho<=750
 and |bearing|<=45 deg, kill = 50 consecutive invisible steps,
 r = 1 - |rho-250|/750 - |theta|/45.
 """
+
 import os
 import sys
 import time
@@ -30,26 +30,28 @@ sys.path.insert(0, os.path.join(GYMUCV, 'gym_unrealcv', 'envs', 'utils'))
 sys.path.insert(0, OAVAT)
 
 import cv2
-import env_unreal          # noqa: E402
-import unrealcv_basic      # noqa: E402
-from kalman_filter import KalmanFilter          # noqa: E402
-from kalman_filter_ca import KalmanFilterCA     # noqa: E402
+import env_unreal  # noqa: E402
+import unrealcv_basic  # noqa: E402
+from kalman_filter import KalmanFilter  # noqa: E402
+from kalman_filter_ca import KalmanFilterCA  # noqa: E402
 
 
 class TightRMixin:
     """R shrunk to R_SCALE x recipe (sigma h/20 -> R_SCALE*h/20); Q untouched."""
+
     R_SCALE = 0.1
 
     def project(self, mean, covariance):
         rs = self.R_SCALE
-        std = [rs * self._std_weight_position * mean[3],
-               rs * self._std_weight_position * mean[3],
-               rs * 1e-1,
-               rs * self._std_weight_position * mean[3]]
+        std = [
+            rs * self._std_weight_position * mean[3],
+            rs * self._std_weight_position * mean[3],
+            rs * 1e-1,
+            rs * self._std_weight_position * mean[3],
+        ]
         innovation_cov = np.diag(np.square(std))
         mean_p = np.dot(self._update_mat, mean)
-        cov_p = np.linalg.multi_dot((
-            self._update_mat, covariance, self._update_mat.T))
+        cov_p = np.linalg.multi_dot((self._update_mat, covariance, self._update_mat.T))
         return mean_p, cov_p + innovation_cov
 
 
@@ -77,11 +79,12 @@ def kf_update_rscaled(kf, mean, cov, meas, sig_scale):
     (R' = sig_scale^2 * R); Q, P untouched.  Used on fade frames where the
     edge-reconstructed cx carries a bias of unknown size (2026-09-28)."""
     import scipy.linalg
+
     H = kf._update_mat
-    pm, pc = kf.project(mean, cov)               # pc = H P H^T + R
+    pm, pc = kf.project(mean, cov)  # pc = H P H^T + R
     HPH = np.linalg.multi_dot((H, cov, H.T))
     R = pc - HPH
-    pc2 = HPH + (sig_scale ** 2) * R
+    pc2 = HPH + (sig_scale**2) * R
     chol, lower = scipy.linalg.cho_factor(pc2, lower=True, check_finite=False)
     K = scipy.linalg.cho_solve((chol, lower), np.dot(cov, H.T).T, check_finite=False).T
     y = meas - pm
@@ -130,9 +133,10 @@ class HLock:
                 mean[3] = self.h_hold
                 mean[7] = 0.0
                 if meas is None and len(mean) >= 10:
-                    mean[8:10] = 0.0   # fake accel learned from the same
-                                       # contaminated frames: zero it too
+                    mean[8:10] = 0.0  # fake accel learned from the same
+                    # contaminated frames: zero it too
         return mean
+
 
 # ---------------- frozen v2 configuration ----------------
 DT = 0.05
@@ -140,53 +144,55 @@ N_STEPS = 500
 KILL_STREAK = 50
 D_SET = 250.0
 V_CAM_MAX = 99.0
-W_CAM_MAX = 30.0          # deg/s
+W_CAM_MAX = 30.0  # deg/s
 FX = 364.3
 CX0 = 320.0
 H_PERSON = 168.0
-HLOCK = False             # hysteresis h-freeze guard (enable with --hlock)
-GATE = False              # innovation gate on updates (enable with --gate)
-GATE_CHI2 = 9.4877        # chi-square 95%, 4-dim measurement
-GATE_REINIT = 3           # consecutive rejected detections -> re-initiate track
-VCAP = False              # heading-aware speed limit from wall clearance (--vcap)
-VCAP_T = 0.6              # s: allowed time-to-reach the margin boundary
-FADEGATE = False          # physical partial-occlusion gate (--fadegate):
-                          # mask pixels < 50% of recent peak => the wall is
-                          # clipping the body => stop feeding the KF, coast
-                          # from the still-clean state
+HLOCK = False  # hysteresis h-freeze guard (enable with --hlock)
+GATE = False  # innovation gate on updates (enable with --gate)
+GATE_CHI2 = 9.4877  # chi-square 95%, 4-dim measurement
+GATE_REINIT = 3  # consecutive rejected detections -> re-initiate track
+VCAP = False  # heading-aware speed limit from wall clearance (--vcap)
+VCAP_T = 0.6  # s: allowed time-to-reach the margin boundary
+FADEGATE = False  # physical partial-occlusion gate (--fadegate):
+# mask pixels < 50% of recent peak => the wall is
+# clipping the body => stop feeding the KF, coast
+# from the still-clean state
 FADE_FRAC = 0.5
-FADE_DECAY = 0.995        # per-step decay of the rolling npx peak
-FADEFREEZE = False        # freeze a/h at last-healthy values during fade
-                          # (--fadefreeze, user-designed): shape cannot
-                          # change just because a wall hides it
-BLINDSPEED = False        # blind-phase speed decoupled from the belief
-                          # (--blindspeed): fixed full speed toward the
-                          # occlusion edge; safety layer still protects
-MAPCLAMP = False          # map-constrained extrapolation (--mapclamp): during
-                          # blind coasting, back-project the belief to a world
-                          # point; a target cannot be inside a wall, so push
-                          # the point out to body clearance and re-project
-BODY_CLR = 20.0           # target body radius (cm) for the clamp
+FADE_DECAY = 0.995  # per-step decay of the rolling npx peak
+FADEFREEZE = False  # freeze a/h at last-healthy values during fade
+# (--fadefreeze, user-designed): shape cannot
+# change just because a wall hides it
+BLINDSPEED = False  # blind-phase speed decoupled from the belief
+# (--blindspeed): fixed full speed toward the
+# occlusion edge; safety layer still protects
+MAPCLAMP = False  # map-constrained extrapolation (--mapclamp): during
+# blind coasting, back-project the belief to a world
+# point; a target cannot be inside a wall, so push
+# the point out to body clearance and re-project
+BODY_CLR = 20.0  # target body radius (cm) for the clamp
 # corridor free-space strips (interior faces shrunk by BODY_CLR):
 # the target can ONLY be in here -- clamping to "not inside a wall" (v2)
 # wrongly pushed the phantom past walls it could never reach
-CORRIDOR = [(-565.0, -455.0, -680.0, 375.0),   # south leg
-            (-565.0, 880.0, 265.0, 375.0)]     # east leg
-EDGEAIM = False           # blind-phase steering re-aim (--edgeaim): while no
-                          # detection, yaw steers at the map-projected
-                          # occlusion edge (where reappearance happens)
-                          # instead of at the KF belief (behind the wall)
-EDGEGEO = False           # geometric fade trigger: box touches occluder edge (--edgegeo)
-EDGE_TOUCH = 6.0          # px tolerance for the geometric trigger
-EDGEGEO_BEHAV = False     # let the geometric trigger also drive edgeaim/blindspeed
-FADE_RSCALE = 1.0         # sigma multiplier for edge-reconstructed cx (--fader=N)
-WMODEL = None             # width model for edgemeas: None | 'oracle' | 'est' (--wmodel=)
-FADEMEAS = 'edge'         # fade-frame measurement: 'edge' (clean edge +- w_good/2) | 'template' (--fademeas=)
-TMPL_MINFRAC = 0.4        # template: reject when visible mask < this fraction of the template
-FADE_RAUTO = False        # sigma scale = (1/visible fraction)^2 on template frames (--fader=auto)
-QVEL = None               # override KF velocity process-noise weight: std = h/QVEL (--qvel=N; recipe = 40)
-TMPL_SHIFT = 120          # template: max |shift| searched (px)
-WMODEL_COEF = None        # loaded from env_config/data/width_model.json
+CORRIDOR = [
+    (-565.0, -455.0, -680.0, 375.0),  # south leg
+    (-565.0, 880.0, 265.0, 375.0),
+]  # east leg
+EDGEAIM = False  # blind-phase steering re-aim (--edgeaim): while no
+# detection, yaw steers at the map-projected
+# occlusion edge (where reappearance happens)
+# instead of at the KF belief (behind the wall)
+EDGEGEO = False  # geometric fade trigger: box touches occluder edge (--edgegeo)
+EDGE_TOUCH = 6.0  # px tolerance for the geometric trigger
+EDGEGEO_BEHAV = False  # let the geometric trigger also drive edgeaim/blindspeed
+FADE_RSCALE = 1.0  # sigma multiplier for edge-reconstructed cx (--fader=N)
+WMODEL = None  # width model for edgemeas: None | 'oracle' | 'est' (--wmodel=)
+FADEMEAS = 'edge'  # fade-frame measurement: 'edge' (clean edge +- w_good/2) | 'template' (--fademeas=)
+TMPL_MINFRAC = 0.4  # template: reject when visible mask < this fraction of the template
+FADE_RAUTO = False  # sigma scale = (1/visible fraction)^2 on template frames (--fader=auto)
+QVEL = None  # override KF velocity process-noise weight: std = h/QVEL (--qvel=N; recipe = 40)
+TMPL_SHIFT = 120  # template: max |shift| searched (px)
+WMODEL_COEF = None  # loaded from env_config/data/width_model.json
 
 
 def width_model(speed, sin_phi, h):
@@ -196,41 +202,46 @@ def width_model(speed, sin_phi, h):
     global WMODEL_COEF
     if WMODEL_COEF is None:
         import json as _j
+
         WMODEL_COEF = _j.load(open(os.path.join(SCRATCH, '..', 'env_config', 'data', 'width_model.json')))
     c = WMODEL_COEF
     a = c['c0'] + c['c1'] * speed + c['c2'] * sin_phi + c['c3'] * speed * sin_phi
     return max(a, 0.15) * h
-DEBUG_EDGE = None         # list -> per-frame edgemeas debug rows
-DEBUG_IMG = None          # (dir, kmin, kmax) -> dump annotated frames
-EDGEMEAS = False          # partial measurement during fade (--edgemeas):
-                          # reconstruct the box center from the un-clipped
-                          # edge (map-projected occluder column decides the
-                          # side); cy/a/h take predicted values
-CORNER_APEX = (-435.0, 245.0)   # the L-track's occluding vertical edge
-DYN = False               # acceleration-first camera dynamics (--dyn):
-                          # velocity is a state, |a| <= A_CAM, sqrt braking law
-A_CAM = 200.0             # cm/s^2: camera accel/brake bound (2 m/s^2, Tello-class)
-MARGIN_CAM = 30.0         # camera-point clearance. 15 = render limit (near-clip ~10.5);
-                          # raised to 30 on 2026-09-21 = body radius + localisation slack
-MARGIN_BODY = 5.0         # body point must stay outside walls
-CAM_FWD = 30.0            # camera forward offset on the body
+
+
+DEBUG_EDGE = None  # list -> per-frame edgemeas debug rows
+DEBUG_IMG = None  # (dir, kmin, kmax) -> dump annotated frames
+EDGEMEAS = False  # partial measurement during fade (--edgemeas):
+# reconstruct the box center from the un-clipped
+# edge (map-projected occluder column decides the
+# side); cy/a/h take predicted values
+CORNER_APEX = (-435.0, 245.0)  # the L-track's occluding vertical edge
+DYN = False  # acceleration-first camera dynamics (--dyn):
+# velocity is a state, |a| <= A_CAM, sqrt braking law
+A_CAM = 200.0  # cm/s^2: camera accel/brake bound (2 m/s^2, Tello-class)
+MARGIN_CAM = 30.0  # camera-point clearance. 15 = render limit (near-clip ~10.5);
+# raised to 30 on 2026-09-21 = body radius + localisation slack
+MARGIN_BODY = 5.0  # body point must stay outside walls
+CAM_FWD = 30.0  # camera forward offset on the body
 PITCH = -15.0
 
 # L-track wall rectangles (x0, x1, y0, y1), engine-verified bounds
-WALLS = [(-685.0, -585.0, -530.0, 70.0),    # cube1
-         (-685.0, -585.0, 70.0, 395.0),     # cube5
-         (-435.0, -335.0, -530.0, 145.0),   # cube2_7
-         (-435.0, 40.0, 145.0, 245.0),      # cube4
-         (-710.0, -35.0, 395.0, 495.0)]     # cube3
-WALL_SPECS = {                               # name -> (cx, cy, sx, sy)
-    'cube1':   (-635.0, -230.0, 1.0, 6.0),
-    'cube5':   (-635.0, 232.5, 1.0, 3.25),
+WALLS = [
+    (-685.0, -585.0, -530.0, 70.0),  # cube1
+    (-685.0, -585.0, 70.0, 395.0),  # cube5
+    (-435.0, -335.0, -530.0, 145.0),  # cube2_7
+    (-435.0, 40.0, 145.0, 245.0),  # cube4
+    (-710.0, -35.0, 395.0, 495.0),
+]  # cube3
+WALL_SPECS = {  # name -> (cx, cy, sx, sy)
+    'cube1': (-635.0, -230.0, 1.0, 6.0),
+    'cube5': (-635.0, 232.5, 1.0, 3.25),
     'cube2_7': (-385.0, -192.5, 1.0, 6.75),
-    'cube4':   (-197.5, 195.0, 4.75, 1.0),
-    'cube3':   (-372.5, 445.0, 6.75, 1.0)}
-WALL_SZ = 3.5                                # 350 cm tall
-PARK = ['cylinder1', 'cylinder2', 'cylinder3', 'cylinder4', 'cylinder5',
-        'cone1', 'cone2', 'cone3', 'cone4', 'cone5']
+    'cube4': (-197.5, 195.0, 4.75, 1.0),
+    'cube3': (-372.5, 445.0, 6.75, 1.0),
+}
+WALL_SZ = 3.5  # 350 cm tall
+PARK = ['cylinder1', 'cylinder2', 'cylinder3', 'cylinder4', 'cylinder5', 'cone1', 'cone2', 'cone3', 'cone4', 'cone5']
 
 # ---------------- random route (topology-locked, occlusion guaranteed) ----
 C_MIN, C_MAX = 40.0, 60.0
@@ -278,7 +289,7 @@ def walk(route, rng, n_steps, sprint_s=None, rand_accel=False, sprint_a=A_MAX):
                 v_star = rng.uniform(V_LO, V_HI)
                 t_next = t + rng.uniform(2, 4)
                 if rand_accel:
-                    a_ramp = rng.uniform(0.0, A_MAX)   # only the max is fixed
+                    a_ramp = rng.uniform(0.0, A_MAX)  # only the max is fixed
             dv = np.clip(v_star - v, -a_ramp * DT, a_ramp * DT)
             v = np.clip(v + dv, V_LO, V_HI)
         s = min(s + v * DT, total)
@@ -295,7 +306,7 @@ def walk(route, rng, n_steps, sprint_s=None, rand_accel=False, sprint_a=A_MAX):
 # ---------------- CorridorMap safety filter ----------------
 def dist_to_walls(x, y):
     d = 1e9
-    for (x0, x1, y0, y1) in WALLS:
+    for x0, x1, y0, y1 in WALLS:
         dx = max(x0 - x, 0.0, x - x1)
         dy = max(y0 - y, 0.0, y - y1)
         d = min(d, math.hypot(dx, dy))
@@ -305,7 +316,7 @@ def dist_to_walls(x, y):
 def wall_push_dir(x, y):
     """Outward unit normal from the wall nearest to point (x, y)."""
     best, nx, ny = 1e9, 0.0, 0.0
-    for (x0, x1, y0, y1) in WALLS:
+    for x0, x1, y0, y1 in WALLS:
         cxp = min(max(x, x0), x1)
         cyp = min(max(y, y0), y1)
         dx, dy = x - cxp, y - cyp
@@ -342,10 +353,10 @@ def vcap_step(x, y, vx, vy):
     along heading) stalled the tracker facing walls: killed, archived.
     Returns the possibly-modified (vx, vy) and whether it intervened."""
     d = dist_to_walls(x, y)
-    if d > MARGIN_CAM + 60.0:            # far from any wall: free
+    if d > MARGIN_CAM + 60.0:  # far from any wall: free
         return vx, vy, False
-    nx, ny = wall_push_dir(x, y)         # outward normal of nearest wall
-    v_in = -(vx * nx + vy * ny)          # approach speed toward the wall
+    nx, ny = wall_push_dir(x, y)  # outward normal of nearest wall
+    v_in = -(vx * nx + vy * ny)  # approach speed toward the wall
     cap = max(0.0, d - MARGIN_CAM) / VCAP_T
     if v_in <= cap:
         return vx, vy, False
@@ -384,17 +395,19 @@ def dyn_step(x, y, cvx, cvy, vdx, vdy):
     Returns (vx, vy, braked)."""
     lim = A_CAM * DT
     d = dist_to_walls(x, y)
-    nx, ny = wall_push_dir(x, y)                 # outward normal of nearest wall
+    nx, ny = wall_push_dir(x, y)  # outward normal of nearest wall
     # decompose previous and desired velocity: u = toward wall, t = along wall
-    tx_, ty_ = -ny, nx                           # tangent unit vector
-    u0 = -(cvx * nx + cvy * ny); t0 = cvx * tx_ + cvy * ty_
-    ud = -(vdx * nx + vdy * ny); td = vdx * tx_ + vdy * ty_
+    tx_, ty_ = -ny, nx  # tangent unit vector
+    u0 = -(cvx * nx + cvy * ny)
+    t0 = cvx * tx_ + cvy * ty_
+    ud = -(vdx * nx + vdy * ny)
+    td = vdx * tx_ + vdy * ty_
     s_ = max(d - MARGIN_CAM, 0.0)
     u_cap = math.sqrt(lim * lim + 2.0 * A_CAM * s_) - lim
     u_hi = min(u0 + lim, u_cap)
     u_lo = u0 - lim
     braked = ud > u_cap
-    u1 = min(max(ud, u_lo), max(u_hi, u_lo))     # if cap < u0-lim: brake at max
+    u1 = min(max(ud, u_lo), max(u_hi, u_lo))  # if cap < u0-lim: brake at max
     rem = math.sqrt(max(lim * lim - (u1 - u0) ** 2, 0.0))
     t1 = min(max(td, t0 - rem), t0 + rem)
     vx = -u1 * nx + t1 * tx_
@@ -428,13 +441,13 @@ def map_clamp(mean, cam_x, cam_y, yaw_deg):
     #  v2 ray-marched through ANY wall -> escaped past unreachable
     #  walls like the north end wall, retired.)
     best, bx_, by_ = 1e9, xt, yt
-    for (x0, x1, y0, y1) in CORRIDOR:
+    for x0, x1, y0, y1 in CORRIDOR:
         cxp = min(max(xt, x0), x1)
         cyp = min(max(yt, y0), y1)
         d = math.hypot(xt - cxp, yt - cyp)
         if d < best:
             best, bx_, by_ = d, cxp, cyp
-    if best < 1.0:                           # already inside the corridor
+    if best < 1.0:  # already inside the corridor
         return mean, False
     # re-project the corrected world point into the image
     bear = math.degrees(math.atan2(by_ - cam_y, bx_ - cam_x))
@@ -456,11 +469,9 @@ def control(cx, h):
 
 # ---------------- engine setup ----------------
 def boot():
-    runner = env_unreal.RunUnreal(
-        ENV_BIN='FlexibleRoom_Win_v0\\FlexibleRoom\\Binaries\\Win64\\FlexibleRoom.exe')
+    runner = env_unreal.RunUnreal(ENV_BIN='FlexibleRoom_Win_v0\\FlexibleRoom\\Binaries\\Win64\\FlexibleRoom.exe')
     ip, port = runner.start(docker=False, resolution=(640, 480))
-    ucv = unrealcv_basic.UnrealCv(port=port, ip=ip, env=runner.path2env,
-                                  cam_id=1, resolution=(640, 480))
+    ucv = unrealcv_basic.UnrealCv(port=port, ip=ip, env=runner.path2env, cam_id=1, resolution=(640, 480))
     # build L walls
     for name, (cx, cy, sx, sy) in WALL_SPECS.items():
         ucv.set_obj_scale(name, [sx, sy, WALL_SZ])
@@ -493,8 +504,7 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
             # corner maneuver accel: only |a| <= A_MAX is fixed; sign free
             # (positive = sprint, negative = brake behind the wall)
             sprint_a = float(rng.uniform(-A_MAX, A_MAX))
-    P, YAW = walk(route, rng, N_STEPS, sprint_s=sprint_s,
-                  rand_accel=(profile in ('randa', 'p2a')), sprint_a=sprint_a)
+    P, YAW = walk(route, rng, N_STEPS, sprint_s=sprint_s, rand_accel=(profile in ('randa', 'p2a')), sprint_a=sprint_a)
 
     # tracker starts 250 cm behind the entry, aligned with first segment
     d0 = route[1] - route[0]
@@ -526,15 +536,15 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
     elif mode == 'ca_r01':
         kf = KFCATightR()
     if kf is not None and QVEL is not None:
-        kf._std_weight_velocity = 1.0 / QVEL      # physics-anchored velocity process noise
+        kf._std_weight_velocity = 1.0 / QVEL  # physics-anchored velocity process noise
     mean = cov = None
     hlock = HLock() if (kf is not None and HLOCK) else None
-    last_bbox = None          # (cx, cy, a, h) for mode 'none'
-    det_visible = False       # hysteresis state on mask pixels
+    last_bbox = None  # (cx, cy, a, h) for mode 'none'
+    det_visible = False  # hysteresis state on mask pixels
     blind_run = 0
     reacq_err = None
     reacq_cm = reacq_dr = None
-    gate_rej = 0              # consecutive gate rejections (valid det present)
+    gate_rej = 0  # consecutive gate rejections (valid det present)
     n_gated = 0
     n_reinit = 0
 
@@ -542,11 +552,11 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
     v_cmd = 0.0
     n_hit = 0
     n_cap = 0
-    cvx = cvy = 0.0           # camera velocity state (used in --dyn mode)
-    npx_win = []              # last-8 healthy-frame pixel counts (fade trigger)
-    tmpl = None               # (column profile, box centre cx, mask px) of last un-clipped frame
-    w_good = None             # last healthy full-body pixel width (a*h)
-    a_good = h_good = None    # last healthy aspect/height (fade-freeze)
+    cvx = cvy = 0.0  # camera velocity state (used in --dyn mode)
+    npx_win = []  # last-8 healthy-frame pixel counts (fade trigger)
+    tmpl = None  # (column profile, box centre cx, mask px) of last un-clipped frame
+    w_good = None  # last healthy full-body pixel width (a*h)
+    a_good = h_good = None  # last healthy aspect/height (fade-freeze)
     n_fade = 0
     n_clamp = 0
     occl_steps = 0
@@ -570,8 +580,15 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
             cv2.line(lit, (u_true, 0), (u_true, 479), (0, 0, 255), 1)
             if ue is not None:
                 cv2.line(lit, (int(ue), 0), (int(ue), 479), (255, 0, 255), 1)
-            cv2.putText(lit, f'k={k} box[{bx_},{bx_+bw_}] w={bw_} true_cx={u_true} edge={ue if ue is None else int(ue)} npx={npx}',
-                        (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
+            cv2.putText(
+                lit,
+                f'k={k} box[{bx_},{bx_ + bw_}] w={bw_} true_cx={u_true} edge={ue if ue is None else int(ue)} npx={npx}',
+                (5, 15),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                (255, 255, 255),
+                1,
+            )
             m3 = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
             cv2.line(m3, (u_true, 0), (u_true, 479), (0, 0, 255), 1)
             cv2.imwrite(os.path.join(DEBUG_IMG[0], f'frame_{k:03d}.png'), np.hstack([lit, m3]))
@@ -586,8 +603,7 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
         meas = None
         if det_ok and box[2] > 0 and box[3] > 0:
             bx, by, bw, bh = box
-            meas = np.array([bx + bw / 2, by + bh / 2, bw / max(bh, 1), bh],
-                            dtype=float)
+            meas = np.array([bx + bw / 2, by + bh / 2, bw / max(bh, 1), bh], dtype=float)
         faded_now = False
         fade_meas = False
         fade_frac = 1.0
@@ -645,7 +661,9 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
                                 meas = np.array([cxT + bd, mean[1], mean[2], mean[3]])
                                 fade_meas = True
                             if DEBUG_EDGE is not None:
-                                DEBUG_EDGE.append((k, bl, br, u, w_good, meas[0] if meas is not None else np.nan, npx, ratio_hit, geo))
+                                DEBUG_EDGE.append(
+                                    (k, bl, br, u, w_good, meas[0] if meas is not None else np.nan, npx, ratio_hit, geo)
+                                )
                         if use_tmpl:
                             pass
                         elif WMODEL == 'oracle':
@@ -659,20 +677,31 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
                             w_use = width_model(est_speed, est_sphi, h_good if h_good else mean[3])
                         if not use_tmpl:
                             if right_clipped:
-                                cxc = bl + w_use / 2.0    # right side clipped
+                                cxc = bl + w_use / 2.0  # right side clipped
                             else:
-                                cxc = br - w_use / 2.0    # left side clipped
+                                cxc = br - w_use / 2.0  # left side clipped
                             # only cx carries innovation; cy/a/h = predicted
                             meas = np.array([cxc, mean[1], mean[2], mean[3]])
                             fade_meas = True
                             if DEBUG_EDGE is not None:
                                 DEBUG_EDGE.append((k, bl, br, u, w_good, cxc, npx, ratio_hit, geo))
                 else:
-                    meas = None                       # plain rejection
+                    meas = None  # plain rejection
             else:
                 if DEBUG_EDGE is not None:
-                    DEBUG_EDGE.append((k, box[0], box[0] + box[2], -1.0, w_good if w_good else -1.0,
-                                       box[0] + box[2] / 2.0, npx, False, False))
+                    DEBUG_EDGE.append(
+                        (
+                            k,
+                            box[0],
+                            box[0] + box[2],
+                            -1.0,
+                            w_good if w_good else -1.0,
+                            box[0] + box[2] / 2.0,
+                            npx,
+                            False,
+                            False,
+                        )
+                    )
                 if FADEMEAS == 'template':
                     ut_ = edge_u(tx, ty, tyaw)
                     if ut_ is None or box[0] > ut_ + 3 or box[0] + box[2] < ut_ - 3:
@@ -681,7 +710,7 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
                 if len(npx_win) > 8:
                     npx_win.pop(0)
                 if mean is not None:
-                    w_good = mean[2] * mean[3]        # healthy full width
+                    w_good = mean[2] * mean[3]  # healthy full width
                     a_good, h_good = mean[2], mean[3]
                 else:
                     w_good = meas[2] * meas[3]
@@ -706,11 +735,11 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
                             if blind_run >= 5 and reacq_err is None:
                                 reacq_err = abs(mean[0] - meas[0])
                                 reacq_cm, reacq_dr = world_reacq(mean[0], mean[3], tx, ty, tyaw, P[k, 0], P[k, 1])
-                            mean, cov = kf.initiate(meas)   # track reset
+                            mean, cov = kf.initiate(meas)  # track reset
                             n_reinit += 1
                             gate_rej = 0
                         else:
-                            meas = None                     # coast this frame
+                            meas = None  # coast this frame
                     else:
                         gate_rej = 0
                 if meas is not None:
@@ -754,9 +783,9 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
                     cx_aim = u
             v_cmd, w_cmd = control(cx_aim, bbox_for_pid[3])
             if BLINDSPEED and (meas is None or faded_now):
-                v_cmd = V_CAM_MAX     # speed decoupled from the belief too
+                v_cmd = V_CAM_MAX  # speed decoupled from the belief too
         else:
-            w_cmd = 0.0          # never seen anything yet
+            w_cmd = 0.0  # never seen anything yet
         tyaw += w_cmd * DT
         hx = math.cos(math.radians(tyaw))
         hy = math.sin(math.radians(tyaw))
@@ -782,10 +811,19 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
             cvx, cvy = (tx - px0) / DT, (ty - py0) / DT
         place_tracker()
         if steplog is not None:
-            steplog.append((tx, ty, tyaw, P[k, 0], P[k, 1], det_ok,
-                            mean[0] if mean is not None else 320.0,
-                            mean[3] if mean is not None else 1.0,
-                            mean is not None))
+            steplog.append(
+                (
+                    tx,
+                    ty,
+                    tyaw,
+                    P[k, 0],
+                    P[k, 1],
+                    det_ok,
+                    mean[0] if mean is not None else 320.0,
+                    mean[3] if mean is not None else 1.0,
+                    mean is not None,
+                )
+            )
 
         # --- protocol scoring (geometric, from ground truth poses) ---
         gx, gy = P[k]
@@ -796,22 +834,46 @@ def run_episode(ucv, z_trk, mode, seed, profile='rand', steplog=None):
         AR += max(min(r, 1.0), -1.0)
         streak = 0 if visible else streak + 1
         if streak >= KILL_STREAK:
-            return dict(mode=mode, profile=profile, seed=seed, c=round(c, 1),
-                        sa=round(sprint_a, 1) if profile == 'p2a' else None,
-                        AR=round(AR, 1), EL=k + 1, SR=0, occl=occl_steps,
-                        hits=n_hit, caps=n_cap, gated=n_gated, reinit=n_reinit,
-                        fade=n_fade, clamp=n_clamp,
-                        reacq=None if reacq_err is None else round(reacq_err, 1),
-                reacq_cm=None if reacq_cm is None else round(reacq_cm, 1),
-                reacq_dr=None if reacq_dr is None else round(reacq_dr, 1))
-    return dict(mode=mode, profile=profile, seed=seed, c=round(c, 1),
+            return dict(
+                mode=mode,
+                profile=profile,
+                seed=seed,
+                c=round(c, 1),
                 sa=round(sprint_a, 1) if profile == 'p2a' else None,
-                AR=round(AR, 1), EL=N_STEPS, SR=int(visible), occl=occl_steps,
-                hits=n_hit, caps=n_cap, gated=n_gated, reinit=n_reinit,
-                fade=n_fade, clamp=n_clamp,
+                AR=round(AR, 1),
+                EL=k + 1,
+                SR=0,
+                occl=occl_steps,
+                hits=n_hit,
+                caps=n_cap,
+                gated=n_gated,
+                reinit=n_reinit,
+                fade=n_fade,
+                clamp=n_clamp,
                 reacq=None if reacq_err is None else round(reacq_err, 1),
                 reacq_cm=None if reacq_cm is None else round(reacq_cm, 1),
-                reacq_dr=None if reacq_dr is None else round(reacq_dr, 1))
+                reacq_dr=None if reacq_dr is None else round(reacq_dr, 1),
+            )
+    return dict(
+        mode=mode,
+        profile=profile,
+        seed=seed,
+        c=round(c, 1),
+        sa=round(sprint_a, 1) if profile == 'p2a' else None,
+        AR=round(AR, 1),
+        EL=N_STEPS,
+        SR=int(visible),
+        occl=occl_steps,
+        hits=n_hit,
+        caps=n_cap,
+        gated=n_gated,
+        reinit=n_reinit,
+        fade=n_fade,
+        clamp=n_clamp,
+        reacq=None if reacq_err is None else round(reacq_err, 1),
+        reacq_cm=None if reacq_cm is None else round(reacq_cm, 1),
+        reacq_dr=None if reacq_dr is None else round(reacq_dr, 1),
+    )
 
 
 def main():
@@ -835,7 +897,7 @@ def main():
     global A_CAM, FADE_RSCALE, WMODEL, FADEMEAS, FADE_RAUTO, TMPL_MINFRAC, QVEL
     for a in args:
         if a.startswith('--seeds='):
-            seeds = seeds[:int(a.split('=')[1])]
+            seeds = seeds[: int(a.split('=')[1])]
         if a.startswith('--acc='):
             A_CAM = float(a.split('=')[1])
         if a.startswith('--fader='):
@@ -851,8 +913,7 @@ def main():
             WMODEL = a.split('=')[1]
         if a.startswith('--fademeas='):
             FADEMEAS = a.split('=')[1]
-    modes = [a for a in args if not a.startswith('@') and not a.startswith('--')] \
-        or ['none', 'cv', 'ca', 'ca_r01']
+    modes = [a for a in args if not a.startswith('@') and not a.startswith('--')] or ['none', 'cv', 'ca', 'ca_r01']
     profiles = [a[1:] for a in args if a.startswith('@')] or ['rand', 'p2']
     results = []
     try:
@@ -883,10 +944,12 @@ def main():
             rs = [r for r in results if r['mode'] == mode and r['profile'] == profile]
             if rs:
                 rq = [r['reacq'] for r in rs if r['reacq'] is not None]
-                print(f"{profile:4s} {mode:7s}  AR={np.mean([r['AR'] for r in rs]):7.1f}  "
-                      f"EL={np.mean([r['EL'] for r in rs]):5.1f}  "
-                      f"SR={np.mean([r['SR'] for r in rs]):.2f}  "
-                      f"reacq={np.mean(rq) if rq else float('nan'):6.1f} (n={len(rq)})")
+                print(
+                    f'{profile:4s} {mode:7s}  AR={np.mean([r["AR"] for r in rs]):7.1f}  '
+                    f'EL={np.mean([r["EL"] for r in rs]):5.1f}  '
+                    f'SR={np.mean([r["SR"] for r in rs]):.2f}  '
+                    f'reacq={np.mean(rq) if rq else float("nan"):6.1f} (n={len(rq)})'
+                )
 
 
 if __name__ == '__main__':

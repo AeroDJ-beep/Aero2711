@@ -1,7 +1,8 @@
-# -*- coding: utf-8 -*-
 """Seed-2000/p2/cv_r01: edgemeas OFF vs ON, find the divergence point."""
+
 import os, sys, time, math
 import numpy as np
+
 SCRATCH_OLD = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRATCH_OLD)
 import run_metrics_test as M
@@ -17,7 +18,7 @@ def episode(ucv, z_trk, use_edge):
     idx = int(np.argmin(np.linalg.norm(route - corner, axis=1)))
     seg_len = np.linalg.norm(np.diff(route, axis=0), axis=1)
     sprint_s = float(seg_len[:idx].sum())
-    P, YAW = M.walk(route, rng, M.N_STEPS, sprint_s=sprint_s)   # p2 profile
+    P, YAW = M.walk(route, rng, M.N_STEPS, sprint_s=sprint_s)  # p2 profile
     d0 = route[1] - route[0]
     u0 = d0 / np.linalg.norm(d0)
     tx, ty = route[0] - u0 * M.D_SET
@@ -31,7 +32,8 @@ def episode(ucv, z_trk, use_edge):
 
     ucv.set_obj_location('targetbp2', [P[0, 0], P[0, 1], 183.6])
     ucv.set_obj_rotation('targetbp2', [0, YAW[0], 0])
-    place(); time.sleep(0.3)
+    place()
+    time.sleep(0.3)
 
     kf = M.KFTightR()
     mean = cov = None
@@ -98,9 +100,19 @@ def episode(ucv, z_trk, use_edge):
         qx, qy = tx + vx * M.DT, ty + vy * M.DT
         tx, ty, _ = M.safe_move(tx, ty, qx, qy, math.hypot(vx, vy) * M.DT)
         place()
-        rows.append((k, npx, raw_cx, meas[0] if meas is not None else float('nan'),
-                     mean[0] if mean is not None else float('nan'),
-                     tx, ty, tyaw, flag))
+        rows.append(
+            (
+                k,
+                npx,
+                raw_cx,
+                meas[0] if meas is not None else float('nan'),
+                mean[0] if mean is not None else float('nan'),
+                tx,
+                ty,
+                tyaw,
+                flag,
+            )
+        )
     return rows
 
 
@@ -111,9 +123,11 @@ try:
 finally:
     runner.close()
 
-np.savez(r'C:\Users\AUFB\AppData\Local\Temp\claude\D--Aero2711\940a7311-f1f8-450b-95dd-fac3d5206417\scratchpad\edgedbg.npz',
-         A=np.array([r[:8] for r in A], dtype=float),
-         B=np.array([r[:8] for r in B], dtype=float))
+np.savez(
+    r'C:\Users\AUFB\AppData\Local\Temp\claude\D--Aero2711\940a7311-f1f8-450b-95dd-fac3d5206417\scratchpad\edgedbg.npz',
+    A=np.array([r[:8] for r in A], dtype=float),
+    B=np.array([r[:8] for r in B], dtype=float),
+)
 
 # divergence point: first step where camera positions differ > 5 cm
 div = None
@@ -124,6 +138,8 @@ for a, b in zip(A, B):
 print('divergence step:', div)
 lo = max((div or 0) - 6, 0)
 print(f'{"k":>4} | {"npx":>6} {"usedcx":>6} {"KFcx":>6} {"camx":>6} {"camy":>6} {"yaw":>5} || (edge ON columns)')
-for a, b in zip(A[lo:lo + 120:3], B[lo:lo + 120:3]):
-    print(f'{a[0]:4d} | OFF {a[1]:6d} {a[3]:6.0f} {a[4]:6.0f} {a[5]:6.0f} {a[6]:6.0f} {a[7]:5.0f} || '
-          f'ON {b[1]:6d} {b[3]:6.0f} {b[4]:6.0f} {b[5]:6.0f} {b[6]:6.0f} {b[7]:5.0f} {b[8]:>12}')
+for a, b in zip(A[lo : lo + 120 : 3], B[lo : lo + 120 : 3]):
+    print(
+        f'{a[0]:4d} | OFF {a[1]:6d} {a[3]:6.0f} {a[4]:6.0f} {a[5]:6.0f} {a[6]:6.0f} {a[7]:5.0f} || '
+        f'ON {b[1]:6d} {b[3]:6.0f} {b[4]:6.0f} {b[5]:6.0f} {b[6]:6.0f} {b[7]:5.0f} {b[8]:>12}'
+    )

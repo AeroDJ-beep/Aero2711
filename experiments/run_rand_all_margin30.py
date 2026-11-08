@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 All remaining L-corner experiments under fully random target motion
 ('rand' profile), 30 cm margin, seeds 2000-2039 (2026-09-29).
@@ -6,6 +5,7 @@ Complements metrics_rand_margin30_2026-09-29.json (baseline_cv, full_none,
 full_cv, full_ca). run_metrics_test.py is not modified; run_episode is
 recompiled with a REPAIR switch (as in run_ablation2_margin30.py).
 """
+
 import os
 import sys
 import json
@@ -14,7 +14,7 @@ import inspect
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import run_metrics_test as m     # noqa: E402
+import run_metrics_test as m  # noqa: E402
 
 src = inspect.getsource(m.run_episode)
 a = 'if EDGEMEAS and mean is not None and w_good is not None:\n                    u = edge_u'
@@ -76,8 +76,13 @@ SEEDS = list(range(2000, 2040))
 def main():
     runner, ucv, z_trk = m.boot()
     out = []
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'results', 'metrics',
-                        'metrics_rand_all_margin30_2026-09-29.json')
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        '..',
+        'results',
+        'metrics',
+        'metrics_rand_all_margin30_2026-09-29.json',
+    )
     try:
         for tag, mode, flags, blind0 in JOBS:
             for k, v in flags.items():
@@ -90,7 +95,7 @@ def main():
                 out.append(res)
                 print('[ep]', json.dumps(res))
                 sys.stdout.flush()
-            with open(path, 'w') as f:          # checkpoint after each config
+            with open(path, 'w') as f:  # checkpoint after each config
                 json.dump(out, f, indent=1)
     finally:
         with open(path, 'w') as f:
@@ -100,8 +105,10 @@ def main():
     for tag, *_ in JOBS:
         rs = [r for r in out if r['cfg'] == tag]
         rq = [r['reacq'] for r in rs if r['reacq'] is not None]
-        print(f"{tag:20s} AR={np.mean([r['AR'] for r in rs]):6.1f} SR={np.mean([r['SR'] for r in rs]):.2f} "
-              f"hits={np.mean([r['hits'] for r in rs]):5.1f} reacq={np.mean(rq) if rq else float('nan'):6.1f} (n={len(rq)})")
+        print(
+            f'{tag:20s} AR={np.mean([r["AR"] for r in rs]):6.1f} SR={np.mean([r["SR"] for r in rs]):.2f} '
+            f'hits={np.mean([r["hits"] for r in rs]):5.1f} reacq={np.mean(rq) if rq else float("nan"):6.1f} (n={len(rq)})'
+        )
 
 
 if __name__ == '__main__':
